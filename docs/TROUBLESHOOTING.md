@@ -168,7 +168,7 @@ An account is required, free for individual use. [Sign up](https://www.kineviz.c
 
 ## Getting help
 
-[Open an issue](https://github.com/Dienert/spanner-omni-kineviz-examples/issues/new?template=demo-bug.yml)
+[Open an issue](https://github.com/Kineviz/spanner-omni-kineviz-examples/issues/new?template=demo-bug.yml)
 with the demo, the step, the full error including its `REMEDIATION:` line, and your versions —
 Kineviz Desktop, the Spanner Omni image tag, your OS, and Docker.
 

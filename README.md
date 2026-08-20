@@ -43,7 +43,7 @@ Generated from each demo's `demo.yaml` — edit that, not this table.
 ## Quick start
 
 ```bash
-git clone https://github.com/Dienert/spanner-omni-kineviz-examples
+git clone https://github.com/Kineviz/spanner-omni-kineviz-examples
 cd spanner-omni-kineviz-examples
 ./gxr omni up                          # pulls ~1 GB the first time
 cd demos/fraud-rings && cp .env.example .env && cd -
