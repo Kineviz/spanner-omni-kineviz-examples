@@ -83,6 +83,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # Two exclusions, for different reasons:
+      #   console.cloud.google.com — requires a signed-in session, always 403/404s here.
+      #   spanner-kineviz-examples — a private repo in this org. Readers of *this* repo can
+      #     see it (this one is private too); an unauthenticated checker cannot, and reports
+      #     404. Drop this exclusion if that repo is ever made public, so a genuinely dead
+      #     link starts failing again.
       - name: Check links
         uses: lycheeverse/lychee-action@v2
         with:
@@ -90,5 +96,6 @@ jobs:
             --no-progress
             --accept 200,206,429
             --exclude '^https://console\.cloud\.google\.com'
+            --exclude '^https://github\.com/Kineviz/spanner-kineviz-examples'
             './**/*.md'
           fail: true
