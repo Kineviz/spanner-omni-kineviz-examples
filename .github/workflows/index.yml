@@ -83,6 +83,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # console.cloud.google.com requires a signed-in session, so it always 403/404s here.
       - name: Check links
         uses: lycheeverse/lychee-action@v2
         with:

@@ -164,9 +164,17 @@ schema introspection and query execution unchanged.
 ```bash
 git clone https://github.com/Kineviz/graphxr-database-proxy.git
 cd graphxr-database-proxy
-uv venv && uv pip install -r requirements.txt
-uv pip install -U 'google-cloud-spanner>=3.65.0'     # Spanner Omni support
+uv venv
+uv pip install --python .venv/bin/python -r requirements.txt
+uv pip install --python .venv/bin/python -U 'google-cloud-spanner>=3.65.0'   # Omni support
 ```
+
+`--python .venv/bin/python` is not decoration. `uv venv` creates the environment but does not
+activate it, and a bare `uv pip install` resolves to whatever interpreter uv finds first —
+which, if you have conda on your PATH, is the **base conda environment**. It will report
+success while upgrading packages system-wide and leaving `.venv` empty, and the failure
+surfaces later as `ModuleNotFoundError: No module named 'google'` when you start the proxy.
+Either pass `--python` as above, or `source .venv/bin/activate` first.
 
 **2. Add the Omni driver**
 
@@ -193,8 +201,24 @@ written against — check it before assuming a mismatch is your fault.
 **3. Create the proxy project**
 
 ```bash
-npm run dev      # web UI at http://localhost:8080/
+npm run dev      # backend on :9080, web UI on a port webpack picks
 ```
+
+**Two ports, and only one of them is stable.** `npm run dev` starts both halves: the FastAPI
+backend on **9080** (fixed — see `nodemon.uv.json` and the `start` script) and a webpack dev
+server for the UI whose port is `process.env.PORT || "auto"`, so it takes 8080 when that is
+free and silently moves on when it is not. The UI proxies `/api` straight through to 9080.
+Browse the UI on whichever port webpack announces; point *Kineviz* at 9080.
+
+Running the backend on its own, without the UI, is enough for everything below:
+
+```bash
+PYTHONPATH=. .venv/bin/python -m uvicorn src.graphxr_database_proxy.main:app \
+  --host 127.0.0.1 --port 9080
+```
+
+`--host 127.0.0.1` rather than `0.0.0.0`: the proxy holds an unauthenticated plain-text
+connection to your deployment, so loopback is the right default unless you have a reason.
 
 Create New Project → Database Type **Google Cloud Spanner**, then:
 
@@ -208,13 +232,73 @@ Create New Project → Database Type **Google Cloud Spanner**, then:
 | Property Graph | your graph name |
 
 Authentication type is ignored; the preview build has no auth. Fill in whatever the form
-insists on.
+insists on — `username_password` with any two strings is fine, and the driver's `connect()`
+discards it before it reaches the client.
+
+Project ID and Instance ID are not read from the form either. The driver hardcodes both to
+`default`, because honouring a typed-in GCP project would produce a `NotFound` against a
+deployment that only ever has `default`. Host, Port and Database ID are the three fields that
+actually reach the client.
+
+Prefer not to click through the UI? The same project over the API — no web UI needed:
+
+```bash
+curl -X POST http://localhost:9080/api/project/create \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "name": "my-project",
+    "database_type": "spanner",
+    "database_config": {
+      "type": "spanner",
+      "host": "localhost",
+      "port": 15000,
+      "project_id": "default",
+      "instance_id": "default",
+      "database_id": "my-db",
+      "graph_name": "MyGraph",
+      "auth_type": "username_password",
+      "username": "omni",
+      "password": "omni"
+    }
+  }'
+```
+
+It persists to `config/projects.json`, so it survives a restart. `POST /api/project/create`
+requires an admin token only when `ADMIN_PASSWORD` is set; with no `.env` it is open.
 
 **4. Point Kineviz at the proxy**
 
-Under **Actions**, copy the project's API URL — something like
-`http://localhost:8080/api/spanner/MyProject`. In Kineviz Desktop, Create New Project →
-Database Type **Database Proxy** → paste the URL → **Connect**.
+The API URL is the backend, the project name, and nothing else:
+
+```
+http://localhost:9080/api/spanner/<project-name>
+```
+
+In the web UI it is under **Actions**; you can also just assemble it — the name is the one you
+gave the project, not its uuid. In Kineviz Desktop, Create New Project → Database Type
+**Database Proxy** → paste the URL → **Connect**.
+
+Prove the URL before you paste it, so a failure has one possible cause instead of two:
+
+```bash
+curl -X POST http://localhost:9080/api/spanner/<project-name>/test
+# {"success":true,"message":"Connection successful"}
+
+curl http://localhost:9080/api/spanner/<project-name>/graphSchema
+# categories and relationships — the graph as Kineviz will see it
+
+curl -X POST http://localhost:9080/api/spanner/<project-name>/query \
+  -H 'Content-Type: application/json' \
+  -d '{"query":"GRAPH MyGraph MATCH (n) RETURN LABELS(n)[OFFSET(0)] AS label, COUNT(*) AS nodes GROUP BY label ORDER BY nodes DESC"}'
+```
+
+`/test` says the client reached the deployment. `/graphSchema` says the property graph is
+registered and introspectable. Only the query proves rows come back. Kineviz needs all three,
+and they fail in that order.
+
+`LABELS(n)` returns an ARRAY, and GoogleSQL will not group by one — `GROUP BY LABELS(n)` fails
+with *Grouping by expressions of type ARRAY is not allowed*. `[OFFSET(0)]` takes the first
+label, which is what you want for a node-count-by-label sanity check.
 
 The canvas opens. Hit **Search**, pick a node label, and run it.
 
@@ -293,7 +377,29 @@ unreachable.
 
 The Spanner client predates Omni support. Install `google-cloud-spanner>=3.65.0` — in this
 repo, `./gxr deps`; in the proxy's environment,
-`uv pip install -U 'google-cloud-spanner>=3.65.0'`.
+`uv pip install --python .venv/bin/python -U 'google-cloud-spanner>=3.65.0'`.
+
+**`ModuleNotFoundError: No module named 'google'` right after a successful install**
+
+`uv pip install` went somewhere other than `.venv`. `uv venv` does not activate anything, and
+uv falls back to the first interpreter it resolves — with conda on your PATH, that is the base
+conda environment, which it will happily upgrade instead. Check where it landed:
+
+```bash
+uv pip install --python .venv/bin/python -r requirements.txt   # the fix
+.venv/bin/python -c "from importlib.metadata import version; print(version('google-cloud-spanner'))"
+```
+
+The install log names its target — `Using Python 3.x environment at: ...` — on every run. If
+that line is not your `.venv`, nothing you install is going to the proxy.
+
+**Kineviz cannot reach the proxy URL, but the web UI works fine**
+
+Almost certainly the port. The backend is on **9080**; the webpack dev server that serves the
+UI takes `PORT` or auto-assigns, so the address bar you are copying from may be 8080, 8081 or
+anything else, and it only reaches the API by proxying to 9080. Kineviz Desktop is not going
+through that dev server. Use `http://localhost:9080/api/spanner/<project-name>` and confirm it
+with `curl -X POST .../test` first.
 
 **`TLS/mTLS connection requires ca_certificate to be set for Spanner Omni`**
 
