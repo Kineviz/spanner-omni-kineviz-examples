@@ -1,0 +1,21 @@
+-- Accounts that receive from several others which all share their device.
+--
+-- The mule shape: value fans IN to one account rather than circulating. Where
+-- query 02 finds the ring, this finds the account worth freezing first.
+--
+-- GQL has no HAVING — you aggregate, then chain with NEXT and FILTER on the
+-- aggregate you just produced.
+GRAPH FraudGraph
+MATCH (payer:Client)-[:USED_DEVICE]->(d:Device)<-[:USED_DEVICE]-(collector:Client),
+      (payer)-[p:PAID]->(collector)
+WHERE payer.id <> collector.id
+RETURN
+  collector.name           AS collector,
+  d.id                     AS shared_device,
+  COUNT(DISTINCT payer.id) AS distinct_payers,
+  ROUND(SUM(p.amount), 2)  AS total_received
+GROUP BY collector, shared_device
+NEXT
+FILTER distinct_payers >= 2
+RETURN collector, shared_device, distinct_payers, total_received
+ORDER BY total_received DESC

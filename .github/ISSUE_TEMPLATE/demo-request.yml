@@ -1,0 +1,32 @@
+name: Suggest a demo
+description: A use case you would like to see on Spanner Omni
+labels: [enhancement]
+body:
+  - type: textarea
+    id: usecase
+    attributes:
+      label: What question should the graph answer?
+      description: The analytical question, not the tech. "Which sites still run firmware under advisory?"
+    validations: { required: true }
+  - type: textarea
+    id: whyomni
+    attributes:
+      label: Why Spanner Omni rather than managed Spanner?
+      description: >
+        The strongest demos here are ones where running locally is the point — data that
+        cannot leave the premises, a site with no reliable uplink, an air-gapped environment,
+        or simply not wanting a cloud account to try Spanner Graph. If managed Spanner would
+        do just as well, spanner-kineviz-examples is probably the better home.
+    validations: { required: true }
+  - type: input
+    id: dataset
+    attributes:
+      label: Dataset
+      description: Must be public or synthetic — we cannot ship customer data, and a preview deployment has no auth, no TLS and no backups.
+    validations: { required: true }
+  - type: dropdown
+    id: difficulty
+    attributes:
+      label: Roughly how involved?
+      options: [beginner, intermediate, advanced, Not sure]
+    validations: { required: true }

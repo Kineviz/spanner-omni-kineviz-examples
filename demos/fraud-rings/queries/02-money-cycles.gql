@@ -1,0 +1,19 @@
+-- Accounts that share a device AND move money between themselves.
+--
+-- This is the pairing that matters. A shared device is a coincidence; a shared
+-- device plus internal transfers is a ring. Run it in Kineviz rather than the
+-- CLI — a cycle is a shape, and the picture makes the direction obvious.
+--
+-- Note the two-hop pattern rather than a returned path: Spanner GQL will not
+-- let you RETURN a path variable.
+GRAPH FraudGraph
+MATCH (a:Client)-[:USED_DEVICE]->(d:Device)<-[:USED_DEVICE]-(b:Client),
+      (a)-[p:PAID]->(b)
+WHERE a.id <> b.id
+RETURN
+  d.id     AS shared_device,
+  a.name   AS payer,
+  b.name   AS payee,
+  p.amount AS amount,
+  p.ts     AS occurred_at
+ORDER BY amount DESC

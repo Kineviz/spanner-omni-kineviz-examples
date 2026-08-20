@@ -1,0 +1,26 @@
+name: contract
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pyyaml jsonschema
+
+      # Required files, demo.yaml schema, README heading order, the
+      # "formerly GraphXR" naming string, the pre-GA disclosure, no inlined
+      # connect steps, a pinned image tag, and teardown scope.
+      - name: Check repo contract
+        run: python3 tools/check_contract.py .
+
+      # The demo matrix is generated from demo.yaml, never hand-edited.
+      - name: Check generated index is current
+        run: python3 tools/gen_index.py . --check

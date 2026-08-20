@@ -1,0 +1,73 @@
+name: docs-drift
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Every demo README documents the manual equivalent of each scripted step, so a
+# person can follow along, work in a restricted environment, or review the
+# commands without reading bash. That only stays true if something checks it.
+#
+# Two contracts here. First: a README's "Or do it step by step" section may not
+# reference a script the demo does not ship. Second, and specific to this repo:
+# the manual commands must not have drifted away from what the scripts actually
+# run against Spanner Omni — the CLI's subcommands are the thing most likely to
+# move under us while it is pre-GA.
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Check README manual steps match the scripts
+        run: |
+          python3 - <<'PY'
+          import pathlib, re, sys
+
+          fail = 0
+          for demo in sorted(pathlib.Path("demos").glob("*/")):
+              if demo.name.startswith("_"):
+                  continue
+              readme = demo / "README.md"
+              if not readme.exists():
+                  continue
+
+              md = readme.read_text()
+              m = re.search(r"##+\s*.*step by step(.*?)(?=\n##\s|\Z)", md, re.I | re.S)
+              if not m:
+                  print(f"::error file={readme}::no 'Or do it step by step' section")
+                  fail = 1
+                  continue
+              section = m.group(1)
+
+              for block in re.findall(r"```(?:bash|shell)\n(.*?)```", section, re.S):
+                  for line in block.splitlines():
+                      line = line.strip()
+                      hit = re.match(r"(?:\./)?(scripts/[\w-]+\.sh)\b", line)
+                      if hit and not (demo / hit.group(1)).exists():
+                          print(f"::error file={readme}::references {hit.group(1)}, which does not exist")
+                          fail = 1
+
+              # Every DDL file the demo ships must be mentioned in the README —
+              # an unreferenced one is either dead or undocumented.
+              for ddl in sorted((demo / "sql").glob("*.ddl")):
+                  if ddl.name not in md:
+                      print(f"::warning file={readme}::sql/{ddl.name} is never mentioned in the README")
+
+              # The manual path must use the same Spanner Omni subcommands the
+              # scripts do. If shared/lib/omni.sh moves to a different one, the
+              # README has to move with it.
+              lib = pathlib.Path("shared/lib/omni.sh").read_text()
+              for verb in ("databases create", "databases ddl update", "databases import"):
+                  if verb.replace("databases ", "") not in lib.replace("databases ", ""):
+                      continue
+                  if verb not in section:
+                      print(f"::error file={readme}::the scripts run '{verb}' but the manual steps never show it")
+                      fail = 1
+
+          sys.exit(fail)
+          PY

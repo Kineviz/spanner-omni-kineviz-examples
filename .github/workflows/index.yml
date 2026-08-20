@@ -1,0 +1,94 @@
+name: index
+
+# Two jobs that keep the repo honest over time:
+#   freshness — flags demos nobody has verified in 120 days
+#   links     — flags dead links, which is how example repos rot in public
+#
+# Freshness matters more here than in the cloud repos: Spanner Omni is pre-GA,
+# its image tag moves, and a demo verified against a superseded build is a demo
+# nobody has actually run.
+
+on:
+  schedule:
+    - cron: "0 15 * * 2"   # Tuesdays
+  workflow_dispatch:
+  pull_request:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  freshness:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pyyaml
+
+      - name: Find stale demos
+        id: stale
+        run: |
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import datetime, pathlib, yaml
+          today, stale = datetime.date.today(), []
+          for f in sorted(pathlib.Path("demos").glob("*/demo.yaml")):
+              d = yaml.safe_load(f.read_text()) or {}
+              lv = d.get("last_verified")
+              if isinstance(lv, datetime.date) and (today - lv).days > 120:
+                  tag = (d.get("verified_with") or {}).get("omni_version", "?")
+                  stale.append(f"- `{d.get('slug')}` — last verified {lv} ({(today - lv).days} days ago), against Spanner Omni `{tag}`")
+          print("body<<EOF")
+          print("\n".join(stale) if stale else "")
+          print("EOF")
+          PY
+
+      - name: Open a freshness issue
+        if: steps.stale.outputs.body != ''
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const body = `These demos have not been verified end to end in over 120 days:
+
+            ${{ steps.stale.outputs.body }}
+
+            Re-run each one against the pinned image tag, then update \`last_verified\` and
+            \`verified_with\` in its \`demo.yaml\`. If the pinned tag is itself superseded,
+            bump \`OMNI_VERSION\` in the same commit and re-verify — Spanner Omni is pre-GA
+            and its CLI and schema move between builds.
+
+            If a demo no longer works, mark it \`status: pending-upstream\` with a
+            \`maturity_note\` rather than leaving it silently broken.`;
+            const title = "Stale demos need re-verification";
+            const existing = await github.rest.issues.listForRepo({
+              owner: context.repo.owner, repo: context.repo.repo,
+              state: "open", labels: "freshness",
+            });
+            if (existing.data.length) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner, repo: context.repo.repo,
+                issue_number: existing.data[0].number, body,
+              });
+            } else {
+              await github.rest.issues.create({
+                owner: context.repo.owner, repo: context.repo.repo,
+                title, body, labels: ["freshness"],
+              });
+            }
+
+  links:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check links
+        uses: lycheeverse/lychee-action@v2
+        with:
+          args: >-
+            --no-progress
+            --accept 200,206,429
+            --exclude '^https://console\.cloud\.google\.com'
+            './**/*.md'
+          fail: true

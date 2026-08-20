@@ -1,0 +1,21 @@
+-- Which sites still run firmware under a published advisory.
+--
+-- The answer a vulnerability scanner gives you is a list of serial numbers. The
+-- answer you can act on is a list of sites, because a site is what you send
+-- someone to. Three hops turn one into the other.
+--
+-- Run this one in Kineviz: the shape shows immediately whether the exposure is
+-- concentrated in one place or smeared across the fleet, and those are different
+-- problems with different fixes.
+GRAPH FleetGraph
+MATCH (d:Device)-[:RUNS]->(f:Firmware)
+WHERE f.advisory <> ''
+MATCH (d)-[:CONNECTED_TO]->(g:Gateway)-[:HOSTED_AT]->(s:Site)
+RETURN
+  f.advisory AS advisory,
+  f.version  AS version,
+  s.name     AS site,
+  s.region   AS region,
+  COUNT(DISTINCT d.id) AS devices
+GROUP BY advisory, version, site, region
+ORDER BY devices DESC

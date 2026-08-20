@@ -1,0 +1,22 @@
+-- THE query this demo exists for.
+--
+-- Accounts that signed in from the same device. On its own this is only a
+-- signal, not a finding — families share tablets. Query 02 is what separates
+-- the two, and this dataset deliberately contains one innocent example so you
+-- can see a device-only rule produce a false positive.
+--
+-- Count the accounts directly rather than matching pairs: a pairwise match with
+-- a.id < b.id reports a 4-account device as 3, which is a quietly wrong number
+-- to hand an investigator.
+GRAPH FraudGraph
+MATCH (c:Client)-[:USED_DEVICE]->(d:Device)
+RETURN
+  d.id   AS device,
+  d.kind AS device_kind,
+  COUNT(DISTINCT c.id) AS accounts,
+  STRING_AGG(c.name, ', ') AS account_names
+GROUP BY device, device_kind
+NEXT
+FILTER accounts > 1
+RETURN device, device_kind, accounts, account_names
+ORDER BY accounts DESC

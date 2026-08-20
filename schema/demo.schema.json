@@ -1,0 +1,173 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/Kineviz/spanner-omni-kineviz-examples/schema/demo.schema.json",
+  "title": "Kineviz demo manifest (Spanner Omni)",
+  "description": "Runbook and index metadata for one demo. Validated by tools/check_contract.py.",
+  "type": "object",
+  "required": [
+    "slug", "title", "summary", "status", "last_verified",
+    "backend", "connection", "difficulty", "time_minutes",
+    "cost", "requires", "steps", "teardown"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "slug": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+      "description": "Must equal the demo's directory name."
+    },
+    "title": { "type": "string", "minLength": 10 },
+    "summary": { "type": "string", "minLength": 30 },
+
+    "status": {
+      "enum": ["stable", "preview", "pending-upstream"],
+      "description": "Spanner Omni is itself pre-GA, so every demo here is at most 'preview'. pending-upstream = blocked on a capability that has not shipped."
+    },
+    "maturity_note": {
+      "type": "string",
+      "description": "Required when status is not 'stable'. Surfaced in the README and by preflight."
+    },
+    "last_verified": {
+      "type": "string",
+      "format": "date",
+      "description": "Last date a human ran this end to end. CI warns past 120 days."
+    },
+    "verified_with": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kineviz_desktop": { "type": "string" },
+        "omni_version": {
+          "type": "string",
+          "description": "The Spanner Omni image tag it was verified against, e.g. 2026.r1-beta.2"
+        },
+        "platform": { "type": "string" }
+      }
+    },
+
+    "backend": { "enum": ["spanner-omni"] },
+    "connection": {
+      "enum": ["kineviz-native", "hosted-portal", "database-proxy", "csv-export"],
+      "description": "How Kineviz reaches the graph. Omni is not reachable by the native Spanner connector today — see connect/README.md."
+    },
+    "query_language": {
+      "type": "array",
+      "items": { "enum": ["gql", "cypher", "gremlin", "sql"] },
+      "minItems": 1
+    },
+    "use_case": { "type": "array", "items": { "type": "string" } },
+    "industry": { "type": "array", "items": { "type": "string" } },
+
+    "difficulty": { "enum": ["beginner", "intermediate", "advanced"] },
+    "time_minutes": { "type": "integer", "minimum": 1, "maximum": 240 },
+
+    "cost": {
+      "type": "object",
+      "required": ["estimate_usd", "bounded_by", "billable_resources"],
+      "additionalProperties": false,
+      "properties": {
+        "estimate_usd": { "type": "number", "minimum": 0 },
+        "bounded_by": {
+          "type": "string",
+          "minLength": 20,
+          "description": "How spend is capped. For Omni this is usually 'nothing is billable — it runs on your own hardware', which must still be stated rather than left blank."
+        },
+        "billable_resources": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Empty for a purely local deployment. Non-empty if the demo provisions a VM, a managed cluster, or anything else metered."
+        },
+        "local_resources": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "What the demo consumes on the machine it runs on. Omni's equivalent of a cloud bill.",
+          "properties": {
+            "vcpu": { "type": "integer", "minimum": 1 },
+            "ram_gb": { "type": "integer", "minimum": 1 },
+            "disk_gb": { "type": "integer", "minimum": 1 }
+          }
+        }
+      }
+    },
+
+    "inputs": {
+      "type": "array",
+      "description": "Values the agent must collect from the person. Never invented.",
+      "items": {
+        "type": "object",
+        "required": ["name", "prompt"],
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$" },
+          "prompt": { "type": "string" },
+          "required": { "type": "boolean", "default": true },
+          "default": { "type": "string" }
+        }
+      }
+    },
+
+    "requires": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "cli": { "type": "array", "items": { "type": "string" } },
+        "python": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Python distributions the demo needs, e.g. google-cloud-spanner>=3.65.0. Installed by './gxr deps', never silently."
+        },
+        "omni_version": {
+          "type": "string",
+          "description": "Minimum Spanner Omni image tag known to work."
+        },
+        "kineviz_desktop": {
+          "type": "string",
+          "pattern": "^>=[0-9]+\\.[0-9]+\\.[0-9]+$",
+          "description": "Floor, not an exact pin. Bumped by .github/workflows/desktop-floor.yml"
+        },
+        "kineviz_account": {
+          "type": "boolean",
+          "description": "true = the person must sign in themselves. The agent never does."
+        }
+      }
+    },
+
+    "steps": {
+      "type": "array",
+      "minItems": 4,
+      "items": {
+        "type": "object",
+        "required": ["id", "run"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "enum": ["preflight", "setup", "verify", "handoff"] },
+          "run": { "type": "string" },
+          "creates": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Exactly what teardown must remove. Nothing else."
+          },
+          "asserts": { "type": "string" }
+        }
+      }
+    },
+
+    "teardown": { "type": "string" },
+    "maintainer": { "type": "string" },
+
+    "upstream": {
+      "type": "object",
+      "description": "Set when a demo orchestrates a pipeline living in another repo rather than owning the code. Pin the commit — an unpinned upstream is how a demo silently stops working.",
+      "required": ["repo", "commit"],
+      "additionalProperties": false,
+      "properties": {
+        "repo": { "type": "string", "format": "uri" },
+        "commit": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$",
+          "description": "Full SHA. A branch name is not a pin."
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,27 @@
+-- The blast radius query 01 does not show you.
+--
+-- Query 01 counts devices attached directly to a gateway. But devices depend on
+-- each other — an interlock, a clock, a setpoint — so losing one takes down
+-- whatever depends on it, and whatever depends on that, for as many hops as the
+-- chain runs. The real radius is the direct count PLUS the transitive tail.
+--
+-- The `{1,4}` is a variable-length quantifier: walk DEPENDS_ON between one and
+-- four hops. Bound it. An unbounded walk on a graph with a cycle does not
+-- terminate, and control dependencies acquire cycles the moment someone wires a
+-- mutual interlock.
+--
+-- Note we return the endpoints and a count rather than the path itself: Spanner
+-- GQL will not let you RETURN a path variable.
+GRAPH FleetGraph
+MATCH (upstream:Device)-[:DEPENDS_ON]->{1,4}(root:Device)-[:CONNECTED_TO]->(g:Gateway)
+RETURN
+  g.id     AS gateway,
+  root.id  AS root_device,
+  root.kind AS root_kind,
+  COUNT(DISTINCT upstream.id) AS devices_downstream
+GROUP BY gateway, root_device, root_kind
+NEXT
+FILTER devices_downstream >= 2
+RETURN gateway, root_device, root_kind, devices_downstream
+ORDER BY devices_downstream DESC
+LIMIT 20

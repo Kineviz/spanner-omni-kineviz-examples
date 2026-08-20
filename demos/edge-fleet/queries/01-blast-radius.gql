@@ -1,0 +1,19 @@
+-- THE query this demo exists for.
+--
+-- If one gateway fails, how much of the fleet goes dark with it? Two hops —
+-- device to gateway to site — answers a question that neither the device
+-- inventory nor the site register can answer alone.
+--
+-- Sort by device count and the concentration point is the first row. In a real
+-- fleet that row is the one you buy a spare for.
+GRAPH FleetGraph
+MATCH (d:Device)-[:CONNECTED_TO]->(g:Gateway)-[:HOSTED_AT]->(s:Site)
+RETURN
+  g.id      AS gateway,
+  g.model   AS model,
+  s.name    AS site,
+  s.region  AS region,
+  COUNT(d.id) AS devices
+GROUP BY gateway, model, site, region
+ORDER BY devices DESC
+LIMIT 10

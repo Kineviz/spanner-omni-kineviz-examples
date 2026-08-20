@@ -1,0 +1,65 @@
+slug: fraud-rings
+title: "Spanner Omni + Kineviz: fraud rings in P2P payments"
+summary: >
+  Build a Spanner property graph of synthetic P2P payments in a Spanner Omni
+  deployment on your own machine, then find the accounts that share a device and
+  move money between themselves. No cloud account, no bill, nothing leaves the
+  laptop.
+
+status: preview
+maturity_note: >
+  Spanner Omni is pre-GA and covered by Google's Pre-GA Offerings Terms. Two
+  limits shape this demo: a deployment stops accepting writes 90 days after you
+  create it, and the preview build supports no TLS, so the endpoint is plain
+  text and must stay on a network you trust. Kineviz has no native Spanner Omni
+  connector yet either — see connect/README.md for the two routes that do work.
+last_verified: 2026-08-20
+verified_with:
+  omni_version: "2026.r1-beta.2"
+  platform: "macOS 15 (Apple Silicon), Docker Desktop 28.0.1"
+
+backend:        spanner-omni
+connection:     database-proxy
+query_language: [gql]
+use_case:       [fraud-detection, aml, payments, offline-analytics]
+industry:       [financial-services]
+
+difficulty:     beginner
+time_minutes:   15
+
+cost:
+  estimate_usd: 0.00
+  bounded_by: >
+    nothing here is billable. Spanner Omni runs as a container on the machine
+    you are sitting at, the dataset is generated locally, and no request leaves
+    the host. The real budget is hardware, not money — see local_resources.
+  billable_resources: []
+  local_resources:
+    vcpu: 4
+    ram_gb: 16
+    disk_gb: 20
+
+inputs: []
+
+requires:
+  cli:    [docker, python3]
+  omni_version: "2026.r1-beta.2"
+  kineviz_desktop: ">=0.17.1"
+  kineviz_account: true
+
+steps:
+  - id: preflight
+    run: ./scripts/preflight.sh
+  - id: setup
+    run: ./scripts/setup.sh
+    creates:
+      - "spanner-omni://default/default/${OMNI_DATABASE}"
+      - "demos/fraud-rings/data/generated/"
+  - id: verify
+    run: ./scripts/verify.sh
+    asserts: "GQL finds at least one device shared by more than one account"
+  - id: handoff
+    run: ./scripts/handoff.sh
+
+teardown: ./scripts/teardown.sh
+maintainer: "@kineviz/solutions"

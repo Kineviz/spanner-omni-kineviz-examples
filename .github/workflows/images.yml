@@ -1,0 +1,49 @@
+name: images
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# A broken image renders as a torn-page icon and reads as an unmaintained repo.
+# Cheap to check, so check it — including before there are any images, so the
+# first one added is covered from the start.
+jobs:
+  links:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Every relative image reference resolves
+        run: |
+          python3 - <<'PY'
+          import pathlib, re, sys
+
+          bad = 0
+          for md in pathlib.Path(".").rglob("*.md"):
+              if ".github" in md.parts:
+                  continue
+              for m in re.finditer(r"!\[[^\]]*\]\(([^)]+)\)", md.read_text()):
+                  ref = m.group(1).split()[0].strip("<>")
+                  if ref.startswith(("http://", "https://", "data:")):
+                      continue
+                  if not (md.parent / ref).exists():
+                      print(f"::error file={md}::image not found: {ref}")
+                      bad = 1
+          if not bad:
+              print("all relative image references resolve")
+          sys.exit(bad)
+          PY
+
+      - name: Images are actually images
+        run: |
+          set -euo pipefail
+          bad=0
+          while IFS= read -r f; do
+            case "$(file -b --mime-type "$f")" in
+              image/*) ;;
+              *) echo "::error file=$f::not a real image — a failed download saved as .png?"; bad=1 ;;
+            esac
+          done < <(git ls-files '*.png' '*.jpg' '*.gif')
+          [ $bad -eq 0 ] && echo "all image files are valid images"
+          exit $bad

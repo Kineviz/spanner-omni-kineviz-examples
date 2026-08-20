@@ -1,0 +1,23 @@
+name: selftest
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Behavioural tests, as opposed to contract.yml's structural ones. Everything
+# here is checkable without Docker and without a running deployment: that
+# scripts fail correctly and with a REMEDIATION line, that --json parses, that
+# .env.example needs no editing, that teardown cannot delete more than it
+# created, that the image tag is pinned, and that no document promises the
+# native Kineviz Spanner connector works against Omni.
+jobs:
+  selftest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Offline self-test
+        run: ./tools/selftest.sh

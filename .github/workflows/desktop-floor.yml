@@ -1,0 +1,68 @@
+name: desktop-floor
+
+# Kineviz Desktop is declared as a floor (">=x.y.z") that tracks the latest
+# release, not an exact pin — see the design note in CONTRIBUTING.md. This job
+# watches the Releases API and opens a PR when a new version ships, so the floor
+# moves deliberately rather than drifting or going stale.
+#
+# Note what this does NOT do: bump OMNI_VERSION. The Spanner Omni image tag is
+# pinned by hand, because a new preview build can change the CLI or the schema
+# and every demo has to be re-run before the bump is safe.
+
+on:
+  schedule:
+    - cron: "0 14 * * 1"   # Mondays
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve latest Kineviz Desktop release
+        id: latest
+        run: |
+          set -euo pipefail
+          tag=$(curl -fsSL https://api.github.com/repos/Kineviz/kineviz-desktop/releases/latest \
+                | python3 -c 'import json,sys; print(json.load(sys.stdin)["tag_name"])')
+          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
+          echo "latest is $tag"
+
+      - name: Update floors in demo.yaml
+        id: bump
+        run: |
+          set -euo pipefail
+          latest="${{ steps.latest.outputs.version }}"
+          changed=0
+          for f in demos/*/demo.yaml; do
+            [ -f "$f" ] || continue
+            current=$(sed -n 's/.*kineviz_desktop:[[:space:]]*">=\(.*\)".*/\1/p' "$f")
+            [ -z "$current" ] && continue
+            if [ "$current" != "$latest" ]; then
+              sed -i "s|kineviz_desktop:[[:space:]]*\">=$current\"|kineviz_desktop: \">=$latest\"|" "$f"
+              echo "  $f: $current -> $latest"
+              changed=1
+            fi
+          done
+          echo "changed=$changed" >> "$GITHUB_OUTPUT"
+
+      - name: Open PR
+        if: steps.bump.outputs.changed == '1'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          branch: chore/desktop-floor-${{ steps.latest.outputs.version }}
+          title: "chore: bump Kineviz Desktop floor to ${{ steps.latest.outputs.version }}"
+          commit-message: "chore: bump Kineviz Desktop floor to ${{ steps.latest.outputs.version }}"
+          body: |
+            Kineviz Desktop ${{ steps.latest.outputs.version }} shipped.
+
+            This raises the `requires.kineviz_desktop` floor in each `demo.yaml`.
+
+            **Before merging:** re-run the affected demos against the new version and
+            update their `last_verified` and `verified_with`. The floor says what is
+            required; `last_verified` says what was actually proven.

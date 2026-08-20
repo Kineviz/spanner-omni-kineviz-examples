@@ -1,0 +1,212 @@
+#!/usr/bin/env bash
+#
+# gxr — the one command for both people and agents.
+#
+#   ./gxr list                list demos and their status
+#   ./gxr deps                optional: .venv/ with the Spanner Python client
+#   ./gxr omni up|status|down manage the local Spanner Omni deployment
+#   ./gxr omni sql <db>       open the Spanner Omni SQL shell
+#   ./gxr up <slug>           preflight → setup → verify → handoff
+#   ./gxr preflight <slug>    check prerequisites only; creates nothing
+#   ./gxr verify <slug>       assert the demo works, with a real query
+#   ./gxr down <slug>         teardown; asks first
+#   ./gxr doctor              run the same checks CI runs
+#
+# Add --json to any command for structured output.
+
+set -euo pipefail
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$REPO_ROOT/shared/lib/common.sh"
+
+for arg in "$@"; do
+  [ "$arg" = "--json" ] && { GXR_JSON=1; export GXR_JSON; }
+done
+
+usage() {
+  sed -n '3,17p' "$REPO_ROOT/gxr" | sed 's/^# \{0,1\}//'
+  exit "${1:-0}"
+}
+
+demo_path() {
+  local slug="$1" path="$REPO_ROOT/demos/$1"
+  [ -d "$path" ] || die "No demo named '$slug'." "Run './gxr list' to see what exists."
+  echo "$path"
+}
+
+# Read one top-level scalar out of demo.yaml without a YAML dependency.
+# Deliberately dumb: demo.yaml is schema-validated in CI, so this only ever
+# runs against files that already passed.
+yaml_get() {
+  local file="$1" key="$2"
+  sed -n "s/^${key}:[[:space:]]*//p" "$file" | head -1 | sed 's/^["'\'']//; s/["'\'']$//'
+}
+
+cmd_list() {
+  local any=0
+  if [ "$GXR_JSON" = 1 ]; then
+    printf '['
+    for d in "$REPO_ROOT"/demos/*/; do
+      [ -f "$d/demo.yaml" ] || continue
+      [ "$any" = 1 ] && printf ','
+      printf '{"slug":"%s","status":"%s","time_minutes":%s}' \
+        "$(yaml_get "$d/demo.yaml" slug)" \
+        "$(yaml_get "$d/demo.yaml" status)" \
+        "$(yaml_get "$d/demo.yaml" time_minutes)"
+      any=1
+    done
+    printf ']\n'; return
+  fi
+
+  printf '\n%sDemos%s\n\n' "$_c_bold" "$_c_reset"
+  for d in "$REPO_ROOT"/demos/*/; do
+    [ -f "$d/demo.yaml" ] || continue
+    local slug status mins title
+    slug=$(yaml_get "$d/demo.yaml" slug)
+    status=$(yaml_get "$d/demo.yaml" status)
+    mins=$(yaml_get "$d/demo.yaml" time_minutes)
+    title=$(yaml_get "$d/demo.yaml" title)
+    local badge="  "
+    [ "$status" = "preview" ] && badge="${_c_yellow}~${_c_reset} "
+    [ "$status" = "pending-upstream" ] && badge="${_c_dim}·${_c_reset} "
+    printf '  %s%-26s %s%s — %s min%s\n' "$badge" "$slug" "$_c_dim" "$title" "$mins" "$_c_reset"
+    any=1
+  done
+  [ "$any" = 0 ] && printf '  %s(none yet)%s\n' "$_c_dim" "$_c_reset"
+
+  printf '\n  %sJust want your own graph in Kineviz? See connect/ — no demo needed.%s\n\n' \
+    "$_c_dim" "$_c_reset"
+}
+
+# Optional. No demo in this repo needs it: the deployment, the schema, the load
+# and every query go through the CLI inside the image, so Docker and a stdlib
+# python3 are the whole dependency list. This installs the Spanner client for
+# people writing their own client-library code against the deployment, and it
+# is the environment the connect/ database-proxy route needs.
+#
+# Explicit, never a side effect of `up`. A demo that quietly pip-installs on
+# your behalf is a demo you cannot review before running.
+cmd_deps() {
+  command -v python3 >/dev/null 2>&1 || die "python3 not found." "Install Python 3.9 or later."
+  local venv="$REPO_ROOT/.venv"
+  step "Installing the Spanner Python client into .venv/ (optional — no demo requires it)"
+  [ -d "$venv" ] || python3 -m venv "$venv" \
+    || die "Could not create $venv." "Check that python3-venv is available."
+  "$venv/bin/pip" install --quiet --upgrade pip >/dev/null 2>&1 || true
+  # 3.65.0 is the floor Google's Omni page documents. Newer clients want
+  # client_options + instance_type="omni" instead of experimental_host — see
+  # connect/proxy/spanner_omni_driver.py, which handles both.
+  "$venv/bin/pip" install --quiet 'google-cloud-spanner>=3.65.0' \
+    || die "pip install google-cloud-spanner failed." "Check your network and Python version."
+  ok "installed $("$venv/bin/pip" show google-cloud-spanner | sed -n 's/^Version: /google-cloud-spanner /p')"
+}
+
+cmd_omni() {
+  local sub="${1:-status}"; shift || true
+  case "$sub" in
+    up)
+      step "Starting Spanner Omni"
+      omni_start
+      info "endpoint: $(omni_endpoint)   console: $(omni_console_url)"
+      dim "the console is read-only in preview — writes go through the CLI or a client library"
+      ;;
+    status)
+      require_docker
+      local state; state=$(omni_container_state)
+      if [ "$GXR_JSON" = 1 ]; then
+        printf '{"container":"%s","state":"%s","endpoint":"%s","console":"%s"}\n' \
+          "$OMNI_CONTAINER" "$state" "$(omni_endpoint)" "$(omni_console_url)"
+        return 0
+      fi
+      printf '\n  container : %s (%s)\n  image     : %s:%s\n  endpoint  : %s\n  console   : %s\n\n' \
+        "$OMNI_CONTAINER" "$state" "$OMNI_IMAGE" "$OMNI_VERSION" "$(omni_endpoint)" "$(omni_console_url)"
+      if [ "$state" = running ]; then
+        printf '  databases :\n'
+        # omni_clean strips the CLI's ANSI erase-line sequences, which otherwise
+        # print as a literal [K at the start of the header row.
+        omni_cli databases list 2>/dev/null | omni_clean | sed 's/^/    /' || printf '    (none)\n'
+        printf '\n'
+      fi
+      ;;
+    sql)
+      [ $# -ge 1 ] || die "Which database?" "Usage: ./gxr omni sql <database>"
+      omni_require_running
+      omni_shell "$1"
+      ;;
+    down|stop)
+      omni_stop
+      ;;
+    destroy)
+      printf '\n  This removes the container %s.\n' "$OMNI_CONTAINER"
+      printf '  Add --all to also delete volume %s, which holds every database.\n\n' "$OMNI_VOLUME"
+      local drop=no
+      [ "${1:-}" = "--all" ] && drop=yes
+      confirm "Proceed?" || { info "Nothing removed."; exit 0; }
+      omni_destroy "$drop"
+      ;;
+    *)
+      die "Unknown omni subcommand: $sub" "One of: up, status, sql <db>, down, destroy [--all]" ;;
+  esac
+}
+
+run_step() {
+  local dir="$1" id="$2" required="${3:-yes}"
+  local script="$dir/scripts/$id.sh"
+  if [ ! -x "$script" ]; then
+    [ "$required" = "yes" ] && die "Missing or non-executable: scripts/$id.sh" \
+      "This demo is incomplete. Please open an issue."
+    return 0
+  fi
+  # NOT ${GXR_JSON:+--json}: common.sh defaults GXR_JSON to the STRING "0",
+  # and :+ tests set-and-non-empty rather than truthiness, so that form would
+  # pass --json on every run and emit machine output to humans.
+  if [ "$GXR_JSON" = 1 ]; then
+    GXR_STEP="$id" "$script" --json
+  else
+    GXR_STEP="$id" "$script"
+  fi
+}
+
+cmd_up() {
+  local dir; dir=$(demo_path "$1")
+  local status; status=$(yaml_get "$dir/demo.yaml" status)
+
+  if [ "$status" = "pending-upstream" ]; then
+    die "'$1' is blocked on an upstream capability that has not shipped." \
+        "$(yaml_get "$dir/demo.yaml" maturity_note)"
+  fi
+  [ "$status" = "preview" ] && warn "'$1' runs against a pre-GA backend. See the README."
+
+  run_step "$dir" preflight
+  run_step "$dir" setup
+  run_step "$dir" verify
+  run_step "$dir" handoff
+}
+
+cmd_down() {
+  local dir; dir=$(demo_path "$1")
+  if [ "$GXR_JSON" != 1 ]; then
+    printf '\n  This deletes what %s created:\n' "$1"
+    sed -n '/creates:/,/^[a-z]/p' "$dir/demo.yaml" | sed -n 's/.*- /    · /p'
+    printf '\n'
+    confirm "Delete them?" || { info "Nothing deleted."; exit 0; }
+  fi
+  run_step "$dir" teardown
+}
+
+cmd_doctor() {
+  command -v python3 >/dev/null 2>&1 || die "python3 not found." "Install Python 3.9+."
+  python3 "$REPO_ROOT/tools/check_contract.py" "$REPO_ROOT"
+}
+
+case "${1:-}" in
+  list)              shift; cmd_list ;;
+  deps)              shift; cmd_deps ;;
+  omni)              shift; cmd_omni "$@" ;;
+  up)                shift; [ $# -ge 1 ] || usage 1; cmd_up "$1" ;;
+  preflight|verify)  c="$1"; shift; [ $# -ge 1 ] || usage 1; run_step "$(demo_path "$1")" "$c" ;;
+  down|teardown)     shift; [ $# -ge 1 ] || usage 1; cmd_down "$1" ;;
+  doctor)            shift; cmd_doctor ;;
+  ""|-h|--help|help) usage 0 ;;
+  *)                 printf 'Unknown command: %s\n\n' "$1" >&2; usage 1 ;;
+esac

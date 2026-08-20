@@ -1,0 +1,18 @@
+-- Where value leaves the P2P network.
+--
+-- A ring only pays if the money gets out. Large merchant payments from an
+-- account that was itself a collector are the exit, and the merchant is
+-- usually the most durable thing to investigate — accounts are cheap to
+-- replace, merchant relationships are not.
+GRAPH FraudGraph
+MATCH (c:Client)-[pm:PAID_MERCHANT]->(m:Merchant)
+WHERE pm.amount > 1000
+RETURN
+  c.name       AS account,
+  c.risk_tier  AS risk_tier,
+  m.name       AS merchant,
+  m.category   AS category,
+  pm.amount    AS amount,
+  pm.ts        AS occurred_at
+ORDER BY amount DESC
+LIMIT 25

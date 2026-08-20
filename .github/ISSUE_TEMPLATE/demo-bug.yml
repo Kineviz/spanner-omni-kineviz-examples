@@ -1,0 +1,57 @@
+name: A demo did not work
+description: Something in this repo failed when you followed the README
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. If a script failed, its `REMEDIATION:` line is the most
+        useful thing you can paste here.
+
+        Before filing: Spanner Omni stops accepting writes **90 days after a deployment is
+        created**. If loads suddenly fail and reads still work, check
+        `docker inspect -f '{{.Created}}' spanneromni` first — that is a preview limitation,
+        not a bug in this repo.
+  - type: input
+    id: demo
+    attributes:
+      label: Which demo?
+      placeholder: fraud-rings — or "connect/" if it was the connection guide
+    validations: { required: true }
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: Paste the full error, including the REMEDIATION line.
+      render: shell
+    validations: { required: true }
+  - type: input
+    id: step
+    attributes:
+      label: Which step?
+      placeholder: preflight / setup / verify / connecting Kineviz
+  - type: input
+    id: omni
+    attributes:
+      label: Spanner Omni image tag
+      description: "From ./gxr omni status, or the OMNI_VERSION in your .env"
+      placeholder: 2026.r1-beta.2
+    validations: { required: true }
+  - type: input
+    id: versions
+    attributes:
+      label: Other versions
+      placeholder: Kineviz Desktop v0.17.1, macOS 15 (Apple Silicon), Docker Desktop 28.0.1
+    validations: { required: true }
+  - type: textarea
+    id: status
+    attributes:
+      label: Output of ./gxr omni status
+      render: shell
+  - type: checkboxes
+    id: hygiene
+    attributes:
+      label: Before submitting
+      options:
+        - label: I have removed any data I did not mean to share
+          required: true

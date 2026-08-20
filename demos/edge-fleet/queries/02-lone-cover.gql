@@ -1,0 +1,28 @@
+-- Sites with exactly one technician on call, and how much high-criticality
+-- equipment sits behind that one person.
+--
+-- The staffing roster knows the first number. The asset register knows the
+-- second. Neither knows the pair, and the pair is the finding — one technician
+-- covering low-criticality kit is a staffing note; one covering high-criticality
+-- kit is a risk with a name attached.
+--
+-- OPTIONAL MATCH so a site with no high-criticality devices still appears with
+-- a zero, rather than vanishing and looking safe by absence.
+--
+-- GQL has no HAVING: aggregate first, then chain with NEXT and FILTER on the
+-- aggregate you just produced.
+GRAPH FleetGraph
+MATCH (t:Technician)-[:COVERS]->(s:Site)
+OPTIONAL MATCH (d:Device)-[:CONNECTED_TO]->(g:Gateway)-[:HOSTED_AT]->(s)
+WHERE d.criticality = 'high'
+RETURN
+  s.name   AS site,
+  s.region AS region,
+  COUNT(DISTINCT t.id) AS technicians,
+  COUNT(DISTINCT d.id) AS high_criticality_devices,
+  STRING_AGG(DISTINCT t.name, ', ') AS on_call
+GROUP BY site, region
+NEXT
+FILTER technicians = 1
+RETURN site, region, technicians, high_criticality_devices, on_call
+ORDER BY high_criticality_devices DESC

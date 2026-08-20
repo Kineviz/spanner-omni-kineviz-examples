@@ -1,0 +1,62 @@
+name: shellcheck
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# These scripts get read by a Google reviewer and copied by customers.
+# They are documentation as much as automation.
+jobs:
+  shellcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: ShellCheck
+        uses: ludeeus/action-shellcheck@master
+        env:
+          SHELLCHECK_OPTS: -e SC1091 -e SC2154
+        with:
+          severity: warning
+
+      # Scripts meant to be run must be executable. Libraries under shared/lib/
+      # are meant to be *sourced*, so they must NOT be — an executable library
+      # invites someone to run it, which does nothing useful.
+      - name: Executable bits are correct
+        run: |
+          set -euo pipefail
+          bad=0
+          while IFS= read -r f; do
+            case "$f" in
+              shared/lib/*)
+                if [ -x "$f" ]; then
+                  echo "::error file=$f::sourced library should not be executable (chmod -x)"
+                  bad=1
+                fi ;;
+              *)
+                if [ ! -x "$f" ]; then
+                  echo "::error file=$f::script is not executable (chmod +x)"
+                  bad=1
+                fi ;;
+            esac
+          done < <(git ls-files '*.sh' 'gxr')
+          exit $bad
+
+      # Scripts that DO something must abort on the first error. Test harnesses
+      # under tools/ deliberately continue past a failure so they can report
+      # every one, so they require -u and pipefail but not -e.
+      - name: Scripts fail loudly
+        run: |
+          set -euo pipefail
+          bad=0
+          while IFS= read -r f; do
+            head -20 "$f" | grep -q 'set -euo pipefail' \
+              || { echo "::error file=$f::missing 'set -euo pipefail'"; bad=1; }
+          done < <(git ls-files 'demos/*.sh' 'connect/*.sh' 'shared/*.sh')
+
+          while IFS= read -r f; do
+            head -25 "$f" | grep -qE 'set -uo pipefail|set -euo pipefail' \
+              || { echo "::error file=$f::missing 'set -u' and 'pipefail'"; bad=1; }
+          done < <(git ls-files 'tools/*.sh')
+          exit $bad
