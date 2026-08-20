@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 # Spanner Omni deployment helpers.
 #
+# A no-op on the normal path — common.sh sets the same options before it sources
+# this file. It is here anyway, and near the top where a reader and CI both look
+# for it: the guarantee that a failure aborts rather than being stepped over
+# belongs to the file that makes it, not to whoever happened to source it.
+set -euo pipefail
+
 # Sourced by shared/lib/common.sh — do not source this directly.
 #
 # Spanner Omni is the downloadable Spanner. It runs on your machine, in your
