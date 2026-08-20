@@ -99,16 +99,16 @@ nodes=$(printf '%s\n' "$out" | awk 'NR==2' | tr -d ' \r')
 ok "GQL query succeeded (graph has ${nodes:-?} nodes)"
 
 if [ "$JSON" = 1 ]; then
-  printf '{"ok":true,"endpoint":"%s","project":"default","instance":"default","database":"%s","graph":"%s","nodes":%s,"node_labels":"%s","edge_labels":"%s"}\n' \
-    "$(omni_endpoint)" "$DATABASE" "$GRAPH" "${nodes:-0}" "$node_labels" "$edge_labels"
+  printf '{"ok":true,"endpoint":"%s","project":"%s","instance":"%s","database":"%s","graph":"%s","nodes":%s,"node_labels":"%s","edge_labels":"%s"}\n' \
+    "$(omni_endpoint)" "$OMNI_PROJECT" "$OMNI_INSTANCE" "$DATABASE" "$GRAPH" "${nodes:-0}" "$node_labels" "$edge_labels"
 else
   cat <<EOF
 
   ${_c_green}The graph is good.${_c_reset} What Kineviz needs, whichever route you take:
 
     Endpoint   : $(omni_endpoint)      (plain text — Spanner Omni preview has no TLS)
-    Project    : default            (fixed by Spanner Omni)
-    Instance   : default            (fixed by Spanner Omni)
+    Project    : $OMNI_PROJECT            (fixed by Spanner Omni)
+    Instance   : $OMNI_INSTANCE            (fixed by Spanner Omni)
     Database   : $DATABASE
     Graph      : $GRAPH
 

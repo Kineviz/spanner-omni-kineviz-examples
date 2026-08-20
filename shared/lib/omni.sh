@@ -32,7 +32,17 @@
 : "${OMNI_CONSOLE_PORT:=15026}"
 
 # Fixed by the product. See the header.
+#
+# Nothing in this file needs them — the CLI infers both and takes no --instance
+# flag at all. They exist because everything that talks to the deployment
+# *without* the CLI does need them, and getting them wrong is the single most
+# confusing failure here: a client configured with a real GCP project id gets
+# NotFound against a database that plainly exists. Declaring them once, here,
+# is what stops connect/verify.sh, the proxy driver and the demo docs each
+# hardcoding their own copy of the string "default".
+# shellcheck disable=SC2034  # consumed by sourcing scripts, not by this file
 OMNI_PROJECT="default"
+# shellcheck disable=SC2034
 OMNI_INSTANCE="default"
 
 # Scratch directory inside the container, for files the CLI has to read from
