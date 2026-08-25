@@ -200,6 +200,14 @@ routes that work, what they cost you, and how to run the proxy by hand are all i
 | 4 | Where does the value leave the network? | [`queries/04-cash-out.gql`](queries/04-cash-out.gql) |
 | 5 | Is this actually schemaless? | [`queries/05-prove-schemaless.sql`](queries/05-prove-schemaless.sql) |
 
+Question 5 has a live version — [`scripts/prove-schemaless.sh`](scripts/prove-schemaless.sh)
+adds a node type and an edge type with no DDL, asserts that the catalog did **not** change
+while the data did, and removes what it added:
+
+```bash
+./scripts/prove-schemaless.sh
+```
+
 Run query 2 on the Kineviz canvas rather than in a terminal — a ring is a shape, and a table
 of account ids is the one representation that hides it.
 
@@ -311,9 +319,8 @@ the deployment itself is a separate, deliberate act:
 - Try the other demos: [`fraud-rings`](../fraud-rings/) is the same fraud question on a
   **standard** Spanner Graph schema — a useful side-by-side if you are deciding between the
   two — and [`edge-fleet`](../edge-fleet/) is dependency analysis on an IoT fleet.
-- Prove it is schemaless rather than take the word for it —
-  [`queries/05-prove-schemaless.sql`](queries/05-prove-schemaless.sql) puts what the catalog
-  knows next to what the data contains, and carries the live version: two `INSERT`s that add a
-  node type and an edge type with no DDL, no schema update and no restart. The new category
-  shows up in Kineviz without reconnecting. That is the demo inside the demo.
+- Prove it is schemaless rather than take the word for it. `./scripts/prove-schemaless.sh`
+  adds a node type and an edge type with no DDL, no schema update and no restart, asserts the
+  catalog is untouched while the data grew, shows the new category arriving in Kineviz without
+  a reconnect, and puts everything back. That is the demo inside the demo.
 - Point the Kineviz Agent at it — [`../../connect/README.md`](../../connect/README.md#4--use-the-kineviz-agent).

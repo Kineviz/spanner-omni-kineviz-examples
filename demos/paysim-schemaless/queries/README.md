@@ -54,13 +54,37 @@ The graph *declares* a dynamic label column, and the catalog knows one label
 while the data carries seven. Labels are not in the schema, because here labels
 are not schema.
 
-That file also carries the live proof — two `INSERT`s that add a node type and
-an edge type with no DDL, no schema update and no restart — and the control that
-shows the same move failing on the standard-schema demo. The writes go through
-the CLI, not through Kineviz: the database proxy runs everything in a read-only
-snapshot, so DML comes back as *"DML statements may not be performed in
-single-use transactions"*. Write from the CLI or an application, and watch the
-new category appear in Kineviz.
+### The live version
+
+Reading it is one thing; watching it is another. This adds a node type and an
+edge type that do not exist, queries them, shows both sides again, and removes
+what it added:
+
+```bash
+../scripts/prove-schemaless.sh
+```
+
+```
+  ✓ the catalog knows 1 label; the data carries 7
+  ✓ inserted :regulator and :reported_to
+  ✓ queryable immediately, with no migration in between
+  ✓ schema unchanged (GraphNode); data went from 7 labels to 8
+  ✓ Kineviz sees it too, with no reconnect: bank, client, …, regulator, …
+  ✓ back to 7 labels — the dataset is as it was
+```
+
+The assertion that matters is the fourth line: the catalog row is **identical**
+before and after, while the data row grows. The script fails if that is not
+true, so it is a test rather than a demonstration.
+
+It cleans up on every exit path — success, failure, or Ctrl-C — and clears any
+rows a previous interrupted run left behind before it starts, so the demo
+dataset is always left as it was found.
+
+The writes go through the CLI, not through Kineviz: the database proxy runs
+everything in a read-only snapshot, so DML there comes back as *"DML statements
+may not be performed in single-use transactions"*. That is also the honest shape
+of a real deployment — applications write, Kineviz reads.
 
 ## What you should find
 
