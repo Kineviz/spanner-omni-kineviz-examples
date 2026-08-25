@@ -60,8 +60,7 @@ are not schema.
 
 ### The live version
 
-Reading it is one thing; watching it is another. This adds a node type and an
-edge type that do not exist, queries them, shows both sides again, and removes
+This adds a node type and an edge type that do not exist, queries them, shows both sides again, and removes
 what it added:
 
 ```bash
@@ -77,9 +76,8 @@ what it added:
   ✓ back to 7 labels — the dataset is as it was
 ```
 
-The assertion that matters is the fourth line: the catalog row is **identical**
-before and after, while the data row grows. The script fails if that is not
-true, so it is a test rather than a demonstration.
+The fourth line is the assertion. The catalog row is **identical** before and
+after, while the data row grows, and the script fails if it is not.
 
 It cleans up on every exit path — success, failure, or Ctrl-C — and clears any
 rows a previous interrupted run left behind before it starts, so the demo
@@ -87,10 +85,10 @@ dataset is always left as it was found.
 
 The writes go through the CLI, not through Kineviz: the database proxy runs
 everything in a read-only snapshot, so DML there comes back as *"DML statements
-may not be performed in single-use transactions"*. That is also the honest shape
-of a real deployment — applications write, Kineviz reads.
+may not be performed in single-use transactions"*. Applications write, Kineviz
+reads.
 
-Worth knowing before you debug the wrong thing: the query panel currently
+One thing to check before you debug the wrong layer: the query panel currently
 renders a proxy-side error as **0 rows and no message**, because it reads the
 response's `data` field and ignores `success` and `error`
 (`DatabaseProxyRequest.excuteCommand`). So a rejected `INSERT` looks exactly

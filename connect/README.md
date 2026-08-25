@@ -354,13 +354,11 @@ yourself re-running it more than twice, that is the signal to set up Route A.
 
 ## 4 · Use the Kineviz Agent
 
-**There is nothing to connect.** The Kineviz Agent is not a second data connection — it
-inherits whatever the project is already connected to. Once Desktop is talking to your graph
+**There is nothing to connect.** The Agent inherits whatever the project is already
+connected to. Once Desktop is talking to your graph
 through Route A, the Agent can see it: the client sends the project id and
 `gxr.getDatabaseSchema()` in the socket handshake, and refreshes that snapshot as the canvas
 changes, so the live schema and canvas state are already in the Agent's context.
-
-Two things are worth knowing.
 
 **The Agent needs Desktop attached.** Its main lever is `runJavaScript` against the `gxr`
 API, which runs in the browser/Desktop client. A cloud session with no Desktop bridge
@@ -454,7 +452,7 @@ the second only when the graph's metadata declares a dynamic label. One undiffer
 `GraphNode` category means it took the static path, so check the DDL still says
 `DYNAMIC LABEL (label)`.
 
-Worth knowing: every schemaless failure mode returns **HTTP 200**. An empty or wrong schema
+Every schemaless failure mode returns **HTTP 200**. An empty or wrong schema
 arrives as `success: true`, so "no error" is not evidence. `./gxr connect up` inspects the
 returned categories and warns rather than letting it pass.
 

@@ -3,8 +3,8 @@
 set -euo pipefail
 #
 # Not part of the demo lifecycle: `./gxr up` never runs this. It exists because
-# "trust me, it's schemaless" is not a demo, and the argument only lands when
-# someone watches a node type appear without a schema migration.
+# the claim lands when someone watches a node type appear without a schema
+# migration.
 #
 # What it does, in order:
 #
@@ -20,8 +20,8 @@ set -euo pipefail
 #
 # The writes go through the CLI on purpose. The database proxy runs every
 # statement in a read-only snapshot, so DML through Kineviz comes back as
-# "DML statements may not be performed in single-use transactions". That is
-# also the honest shape of a real deployment: applications write, Kineviz reads.
+# "DML statements may not be performed in single-use transactions". Applications
+# write, Kineviz reads.
 source "$(dirname "${BASH_SOURCE[0]}")/../../../shared/lib/common.sh"
 eval "$(parse_common_flags "$@")"
 # shellcheck disable=SC2034  # read by the logging helpers in common.sh
@@ -130,4 +130,4 @@ final=$(sides | grep 'the data' | tr ',' '\n' | grep -c . || true)
   "Remove them by hand: DELETE FROM GraphNode WHERE id='$NODE_ID';"
 ok "back to $final labels — the dataset is as it was"
 
-ok "proved: labels are data here, not schema"
+ok "labels here are data, not schema"

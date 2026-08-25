@@ -11,8 +11,7 @@
 -- `highrisk` is a dynamic property — it lives in the JSON column, not in a
 -- BOOL column — so it needs BOOL() before it can be used as a predicate.
 -- Note also `risk_reason`, which exists ONLY on the high-risk merchants.
--- Two nodes sharing a label need not share a property set; that is the point
--- of schemaless, and this is where you can see it.
+-- Two nodes sharing a label need not share a property set.
 GRAPH PaysimGraph
 MATCH (c:client)-[:performs]->(t:transaction)-[:to_merchant]->(m:merchant)
 WHERE BOOL(m.highrisk)

@@ -238,7 +238,7 @@ Seven node labels and seven edge labels, none declared in the schema:
 (:client)-[:has_phone]->(:phonenumber)
 ```
 
-Three modelling decisions worth knowing, each forced by a real constraint:
+Three modelling decisions, each forced by a constraint:
 
 - **Transactions are nodes, not edges.** Spanner allows **at most one node table and one edge
   table** to use `DYNAMIC LABEL`. A PaySim transaction's receiver may be a client, a merchant
@@ -253,11 +253,11 @@ Three modelling decisions worth knowing, each forced by a real constraint:
 - **Labels and property names are lowercase.** Spanner requires it for schemaless matching.
   `MATCH (n:Client)` finds nothing.
 
-And one thing put there on purpose: **not every node with the same label carries the same
+One thing is there on purpose: **not every node with the same label carries the same
 properties.** Only mule accounts have `fraud_typology`; only high-risk merchants have
-`risk_reason`. That is the feature, not an inconsistency.
+`risk_reason`.
 
-> Caveat worth knowing before you demo it: the proxy builds its schema panel by sampling
+> Before you demo it: the proxy builds its schema panel by sampling
 > **one row per label**, so a property that exists on only some nodes may not appear in
 > Kineviz's schema list. It queries fine either way.
 
@@ -322,5 +322,5 @@ the deployment itself is a separate, deliberate act:
 - Prove it is schemaless rather than take the word for it. `./scripts/prove-schemaless.sh`
   adds a node type and an edge type with no DDL, no schema update and no restart, asserts the
   catalog is untouched while the data grew, shows the new category arriving in Kineviz without
-  a reconnect, and puts everything back. That is the demo inside the demo.
+  a reconnect, and puts everything back.
 - Point the Kineviz Agent at it — [`../../connect/README.md`](../../connect/README.md#4--use-the-kineviz-agent).

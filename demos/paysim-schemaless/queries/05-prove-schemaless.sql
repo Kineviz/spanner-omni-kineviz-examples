@@ -11,7 +11,7 @@
 --
 -- Two facts in one result: the graph DECLARES a dynamic label column, and the
 -- catalog knows exactly one label while the data carries seven. The labels are
--- not in the schema, because here labels are not schema.
+-- not in the schema.
 --
 -- Plain SQL, not GQL — hence .sql. The schema half reads INFORMATION_SCHEMA and
 -- the data half reaches into the graph with GRAPH_TABLE, which is what lets a

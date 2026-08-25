@@ -344,8 +344,7 @@ class Gen:
             }
             if mule:
                 # Deliberately present on SOME clients only. In a schemaless
-                # graph two nodes with the same label need not carry the same
-                # keys — that is the feature, and this is where you can see it.
+                # graph two nodes with the same label need not carry the same keys.
                 props["fraud_typology"] = "mule_account"
             nodes.append((nid("client", c["id"]), "client", props))
 
