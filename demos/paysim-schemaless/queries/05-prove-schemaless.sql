@@ -18,6 +18,16 @@
 -- single statement hold both. (TO_JSON_STRING is unsupported on ARRAY<STRING>
 -- in 2026.r1-beta.2, so both sides aggregate to plain strings.)
 --
+-- Running it from the Kineviz query panel: paste it into the **Query** tab, not
+-- SQL. One shape detail matters. The database proxy decides whether something
+-- is a graph query by regex — it looks for MATCH, and for a RETURN that is NOT
+-- followed by a property accessor or a function call. Written the natural way,
+-- `RETURN DISTINCT n.label`, the word DISTINCT sits between RETURN and the
+-- accessor, the proxy guesses "graph query", rewrites the whole statement into
+-- `MATCH __p=(n) RETURN SAFE_TO_JSON(__p)`, and Spanner rejects the wreckage.
+-- Writing `RETURN n.label` and moving DISTINCT into ARRAY_AGG keeps the regex
+-- on the right side of that guess. Do not "tidy" it back.
+--
 -- To watch it happen rather than read it, run ../scripts/prove-schemaless.sh:
 -- it adds a node type with no DDL, asserts this query's schema row is unchanged
 -- while its data row grows, and puts the dataset back.
@@ -49,8 +59,10 @@ data_side AS (
   SELECT
     'the data' AS source,
     'label' AS dynamic_label_column,
-    ARRAY_TO_STRING(ARRAY_AGG(label ORDER BY label), ', ') AS labels
-  FROM GRAPH_TABLE(PaysimGraph MATCH (n) RETURN DISTINCT n.label AS label)
+    ARRAY_TO_STRING(ARRAY_AGG(DISTINCT label ORDER BY label), ', ') AS labels
+  -- `RETURN n.label`, with DISTINCT moved into ARRAY_AGG above, is deliberate;
+  -- see the note on the Kineviz query panel at the top of this file.
+  FROM GRAPH_TABLE(PaysimGraph MATCH (n) RETURN n.label AS label)
 )
 SELECT * FROM schema_side
 UNION ALL

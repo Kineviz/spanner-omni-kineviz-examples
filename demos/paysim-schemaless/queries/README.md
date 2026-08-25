@@ -44,6 +44,10 @@ data contains:
 ../../../gxr omni query kineviz-paysim-demo 05-prove-schemaless.sql
 ```
 
+or paste it into the **Query** tab of the Kineviz query panel — that tab posts
+whatever you type straight to the proxy, so all five files here work there.
+Strip the `--` comments first if you paste the whole file.
+
 ```
 source      dynamic_label_column  labels
 the schema  label                 GraphNode
@@ -85,6 +89,14 @@ The writes go through the CLI, not through Kineviz: the database proxy runs
 everything in a read-only snapshot, so DML there comes back as *"DML statements
 may not be performed in single-use transactions"*. That is also the honest shape
 of a real deployment — applications write, Kineviz reads.
+
+Worth knowing before you debug the wrong thing: the query panel currently
+renders a proxy-side error as **0 rows and no message**, because it reads the
+response's `data` field and ignores `success` and `error`
+(`DatabaseProxyRequest.excuteCommand`). So a rejected `INSERT` looks exactly
+like a query that legitimately matched nothing. If a statement you expect to
+work returns 0 rows, re-run it with `gxr omni query` — the CLI prints the real
+error.
 
 ## What you should find
 
