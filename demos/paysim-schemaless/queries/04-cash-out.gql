@@ -1,0 +1,30 @@
+-- Where the value actually leaves the network.
+--
+-- A ring is only worth running if the money gets out, and it gets out at a
+-- merchant. Three merchants in this dataset are flagged high risk, and the
+-- planted mules cash out at them.
+--
+-- The action filter matters: CASH_IN at a merchant is money arriving, not
+-- leaving. Drop it and the table fills with large, entirely innocent deposits
+-- that outrank the finding.
+--
+-- `highrisk` is a dynamic property — it lives in the JSON column, not in a
+-- BOOL column — so it needs BOOL() before it can be used as a predicate.
+-- Note also `risk_reason`, which exists ONLY on the high-risk merchants.
+-- Two nodes sharing a label need not share a property set; that is the point
+-- of schemaless, and this is where you can see it.
+GRAPH PaysimGraph
+MATCH (c:client)-[:performs]->(t:transaction)-[:to_merchant]->(m:merchant)
+WHERE BOOL(m.highrisk)
+  AND STRING(t.action) IN ('CASH_OUT', 'PAYMENT')
+  AND FLOAT64(t.amount) > 1000
+RETURN
+  STRING(m.name)        AS merchant,
+  STRING(m.risk_reason) AS risk_reason,
+  c.id                  AS client,
+  STRING(c.name)        AS client_name,
+  STRING(t.action)      AS action,
+  ROUND(FLOAT64(t.amount), 2) AS amount,
+  STRING(t.timestamp)   AS ts
+ORDER BY amount DESC
+LIMIT 25

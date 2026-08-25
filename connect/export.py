@@ -12,6 +12,11 @@ Two files come out:
     nodes.csv   id, label, <one column per declared property>
     edges.csv   source, target, label, <one column per declared property>
 
+For a SCHEMALESS graph (DYNAMIC LABEL / DYNAMIC PROPERTIES) the label comes from
+its column rather than the schema, and the JSON properties column is expanded
+one level into real columns — otherwise every row would export as one category
+called `GraphNode` carrying a single unreadable blob.
+
 Node ids are namespaced by their node table — `Client:C00042`, not `C00042` —
 because two labels in the same graph can perfectly well both key on `id`, and
 an unqualified id silently merges them into one node on the canvas.
@@ -159,6 +164,62 @@ def read_rows(files, columns) -> list[dict]:
     return rows
 
 
+def dynamic_props(raw: str) -> dict:
+    """Top-level keys of a JSON properties column, as CSV-safe scalars.
+
+    Spanner models only TOP-LEVEL keys of a dynamic-properties column as graph
+    properties, so this flattens exactly one level and no further: a nested
+    object stays a JSON string rather than being invented into columns.
+    """
+    if not raw:
+        return {}
+    try:
+        data = json.loads(raw)
+    except (ValueError, TypeError):
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    out = {}
+    for key, value in data.items():
+        if isinstance(value, bool):
+            out[key] = "true" if value else "false"
+        elif value is None:
+            out[key] = ""
+        elif isinstance(value, (dict, list)):
+            out[key] = json.dumps(value)
+        else:
+            out[key] = str(value)
+    return out
+
+
+def element_props(table: dict, row: dict, props: list, fallback_label: str):
+    """(label, properties) for one row, static or schemaless.
+
+    A schemaless element carries its label in a STRING column and its
+    properties in a JSON column (DYNAMIC LABEL / DYNAMIC PROPERTIES). Exporting
+    those verbatim would give Kineviz one category called `GraphNode` and a
+    single unreadable JSON blob per row, which is technically the data and
+    practically useless. So: the dynamic label becomes the label, and the JSON
+    is expanded into real columns.
+    """
+    dyn_label = table.get("dynamicLabelExpr")
+    dyn_props = table.get("dynamicPropertyExpr")
+
+    label = fallback_label
+    if dyn_label and row.get(dyn_label):
+        label = row[dyn_label]
+
+    values = {name: row.get(expr, "") for name, expr in props}
+    if dyn_props:
+        # The raw JSON column is not a property, and the label column is the
+        # category rather than a property of it.
+        values.pop(dyn_props, None)
+        if dyn_label:
+            values.pop(dyn_label, None)
+        values.update(dynamic_props(row.get(dyn_props, "")))
+    return label, values
+
+
 def node_id(table: str, values: list[str]) -> str:
     return table + ":" + "|".join(values)
 
@@ -224,8 +285,8 @@ def main() -> int:
             files, cols = tables[base]
             for row in read_rows(files, cols):
                 ident = node_id(nt["name"], [row.get(k, "") for k in keys])
-                nodes.append(([ident, label],
-                              {name: row.get(expr, "") for name, expr in props}))
+                row_label, values = element_props(nt, row, props, label)
+                nodes.append(([ident, row_label], values))
 
         # --- edges ---------------------------------------------------------
         edges: list[tuple[list, dict]] = []
@@ -259,8 +320,8 @@ def main() -> int:
             for row in read_rows(files, cols):
                 s = node_id(src["nodeTableName"], [row.get(c, "") for c in src["edgeTableColumns"]])
                 d = node_id(dst["nodeTableName"], [row.get(c, "") for c in dst["edgeTableColumns"]])
-                edges.append(([s, d, label],
-                              {name: row.get(expr, "") for name, expr in props}))
+                row_label, values = element_props(et, row, props, label)
+                edges.append(([s, d, row_label], values))
     finally:
         shutil.rmtree(scratch, ignore_errors=True)
 

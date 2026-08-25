@@ -26,3 +26,10 @@ __pycache__/
 *.swp
 .idea/
 .vscode/
+
+# `./gxr connect up` installs the database proxy here. Not ours to commit.
+.connect/
+
+# connect/export.py's default --out. Someone else's data snapshot, always
+# regenerable, and on a real graph potentially large.
+/export/

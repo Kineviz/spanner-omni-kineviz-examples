@@ -1,0 +1,29 @@
+-- The separator: of the accounts that share an identifier, which ones also
+-- move money to each other?
+--
+-- That is the difference between a family and a ring, and it is the query to
+-- run on the Kineviz canvas rather than in a terminal — a ring is a shape, and
+-- a table of account ids is the one representation that hides it.
+--
+-- Note the two-hop money pattern. In a schemaless graph a transaction is a
+-- NODE, not an edge, because Spanner allows at most one edge table to carry a
+-- dynamic label and a PaySim transaction's receiver may be a client, a
+-- merchant or a bank. So "a paid b" is
+--     (a)-[:performs]->(:transaction)-[:to_client]->(b)
+-- and the reified transaction is what carries amount, action and timestamp.
+--
+-- The innocent family shares a phone and appears in query 01. It must NOT
+-- appear here — verify.sh asserts exactly that.
+GRAPH PaysimGraph
+MATCH (a:client)-[:has_ssn|has_email|has_phone]->(i)<-[:has_ssn|has_email|has_phone]-(b:client),
+      (a)-[:performs]->(t:transaction)-[:to_client]->(b)
+WHERE a.id < b.id
+RETURN
+  i.label              AS shared_via,
+  STRING(i.name)       AS identifier,
+  STRING(a.name)       AS payer,
+  STRING(b.name)       AS payee,
+  COUNT(*)             AS transfers,
+  ROUND(SUM(FLOAT64(t.amount)), 2) AS total_moved
+GROUP BY shared_via, identifier, payer, payee
+ORDER BY total_moved DESC
