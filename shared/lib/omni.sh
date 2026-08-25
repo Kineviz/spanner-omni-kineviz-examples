@@ -402,18 +402,60 @@ omni_graph_metadata() {
 # table `UsedDevice` may declare `LABEL USED_DEVICE`. Getting this wrong gives
 # "Failed to find element label", which reads like a broken graph when only the
 # query is wrong.
+#
+# Two kinds of graph, two places the answer lives:
+#
+#   * A standard graph declares its labels in the schema, so the catalog knows
+#     them and `labelNames` in the metadata is the answer.
+#   * A SCHEMALESS graph (DYNAMIC LABEL) keeps labels in a column, so the
+#     catalog only knows the table's own label — `GraphNode`. Reporting that
+#     would be true and useless: it is one label covering every node, and
+#     someone told to "use these in GQL" would match everything
+#     undifferentiated. For those, ask the data.
 omni_graph_labels() {
-  omni_graph_metadata "$1" "$2" | python3 -c '
+  local db="$1" graph="$2" meta
+  meta=$(omni_graph_metadata "$db" "$graph") || return 1
+  [ -n "$meta" ] || return 1
+
+  # Does this graph carry dynamic labels? The key is `dynamicLabelExpr`, on the
+  # node/edge table entries.
+  local dynamic
+  dynamic=$(printf '%s' "$meta" | python3 -c '
 import json, sys
-raw = sys.stdin.read().strip()
-if not raw:
-    sys.exit(1)
-d = json.loads(raw)
+try:
+    d = json.loads(sys.stdin.read())
+except Exception:
+    print("no"); raise SystemExit
+tables = d.get("nodeTables", []) + d.get("edgeTables", [])
+print("yes" if any(t.get("dynamicLabelExpr") for t in tables) else "no")
+' 2>/dev/null || echo "no")
+
+  if [ "$dynamic" != "yes" ]; then
+    printf '%s' "$meta" | python3 -c '
+import json, sys
+d = json.loads(sys.stdin.read())
 node = sorted({l for t in d.get("nodeTables", []) for l in t.get("labelNames", [])})
 edge = sorted({l for t in d.get("edgeTables", []) for l in t.get("labelNames", [])})
 print("NODE: " + ", ".join(node))
 print("EDGE: " + ", ".join(edge))
 '
+    return 0
+  fi
+
+  # Schemaless: read the labels out of the data. n.label is the dynamic-label
+  # column, exposed as a defined property — deliberately not
+  # LABELS(n)[OFFSET(0)], which also returns the table label and sorts.
+  local nodes edges
+  nodes=$(omni_sql "$db" "GRAPH $graph
+MATCH (n) RETURN DISTINCT n.label AS label ORDER BY label" \
+    | awk 'NR>1' | sed 's/[[:space:]]*$//' | sed '/^$/d' | paste -sd, - | sed 's/,/, /g')
+  edges=$(omni_sql "$db" "GRAPH $graph
+MATCH ()-[r]->() RETURN DISTINCT r.label AS label ORDER BY label" \
+    | awk 'NR>1' | sed 's/[[:space:]]*$//' | sed '/^$/d' | paste -sd, - | sed 's/,/, /g')
+
+  printf 'NODE: %s\n' "$nodes"
+  printf 'EDGE: %s\n' "$edges"
+  printf 'SCHEMALESS: yes\n'
 }
 
 # --- the Python client (optional) -------------------------------------------

@@ -141,6 +141,18 @@ network, that is a point in favour of Desktop, or of Route B.
 
 ### Route A — via the database proxy (live GQL)
 
+> **If you are running one of this repo's demos, you do not have to do any of this by hand:**
+>
+> ```bash
+> ./gxr connect up <slug>
+> ```
+>
+> That performs every step in this section — installs the proxy at a pinned commit into a
+> gitignored `.connect/`, applies the Omni driver, starts it on loopback, registers the
+> database, checks the connection *and* the discovered schema, and prints the URL for
+> Desktop. `./gxr connect status` and `./gxr connect down` manage it afterwards. The rest of
+> this section is what it does, for your own graph or for when you want to see the parts.
+
 [`graphxr-database-proxy`](https://github.com/Kineviz/graphxr-database-proxy) is Kineviz's
 zero-trust middleware: it holds the database connection, exposes an HTTP API, and Kineviz
 points at that API instead of at the database. Its Spanner driver builds a client for managed
@@ -340,6 +352,54 @@ yourself re-running it more than twice, that is the signal to set up Route A.
 
 ---
 
+## 4 · Use the Kineviz Agent
+
+**There is nothing to connect.** The Kineviz Agent is not a second data connection — it
+inherits whatever the project is already connected to. Once Desktop is talking to your graph
+through Route A, the Agent can see it: the client sends the project id and
+`gxr.getDatabaseSchema()` in the socket handshake, and refreshes that snapshot as the canvas
+changes, so the live schema and canvas state are already in the Agent's context.
+
+Two things are worth knowing.
+
+**The Agent needs Desktop attached.** Its main lever is `runJavaScript` against the `gxr`
+API, which runs in the browser/Desktop client. A cloud session with no Desktop bridge
+attached is told so explicitly and cannot touch the canvas.
+
+**The Agent's built-in database knowledge is KoreDB, not Spanner.** Its system prompt asserts
+KoreDB naming unconditionally, and the only database skill it ships with is KoreDB's. Pointed
+at a Spanner-backed project it will reach for KoreDB Cypher, which is close enough to GQL to
+look right and fails in ways that read like a broken database.
+
+Fix that by installing the skill in this repo:
+
+```bash
+mkdir -p "<your project folder>/.agents/skills"
+cp -r skills/spanner-graph-gql "<your project folder>/.agents/skills/"
+```
+
+Skills are read from `<project folder>/.agents/skills/`. Start a new chat afterwards. You do
+not need to load it by hand — the Agent reads skill descriptions and pulls in the body when
+one is relevant, so asking a GQL question is enough. See [`../skills/`](../skills/).
+
+### Things worth asking it
+
+Once the graph is on the canvas:
+
+- *"What node labels and relationship types does this graph have, and how many of each?"* —
+  a good first question, and on a schemaless graph the answer comes from the data rather than
+  from a schema.
+- *"Find accounts that share an SSN, email or phone with another account, and show me which
+  of those also transfer money to each other."* — the fraud-ring question. Ask it to put the
+  result on the canvas, not in a table.
+- *"Lay the result out so the rings are visible, and colour nodes by label."*
+- *"One of these clusters is an innocent family sharing a phone. Which one, and how can you
+  tell from the graph?"* — the question the whole demo exists for.
+- *"Add a node with a label that doesn't exist yet, then re-read the schema."* — on a
+  schemaless graph this works without a schema change. That is the pitch, demonstrated.
+
+---
+
 ## Verify
 
 Check the graph is reachable and queryable *before* involving Kineviz — that way, when
@@ -372,6 +432,37 @@ not finished electing — that takes 20–30 seconds after start. `./gxr omni up
 On macOS and Windows, also check you published the ports. `--network host` binds inside
 Docker's VM, not on your machine, so the container looks healthy and the endpoint is
 unreachable.
+
+**`ModuleNotFoundError: No module named 'httpx'` — and the Spanner route stops working**
+
+Nothing to do with Spanner. The proxy's `factory.py` imports *every* driver at module load,
+so a dependency missing for a driver you do not use still takes down the one you do: the
+RocketGraph driver needs `httpx`, and if it is absent the import fails before the Spanner
+driver is ever registered. Reinstall the proxy's current requirements — not a subset:
+
+```bash
+.venv/bin/python -m pip install -r requirements.txt
+```
+
+`./gxr connect up` does this on every run for exactly this reason.
+
+**Kineviz shows a single category called `GraphNode` instead of your labels**
+
+Only affects **schemaless** graphs. The proxy has two schema paths: static introspection from
+`INFORMATION_SCHEMA`, and a schemaless path that discovers labels by reading data. It picks
+the second only when the graph's metadata declares a dynamic label. One undifferentiated
+`GraphNode` category means it took the static path, so check the DDL still says
+`DYNAMIC LABEL (label)`.
+
+Worth knowing: every schemaless failure mode returns **HTTP 200**. An empty or wrong schema
+arrives as `success: true`, so "no error" is not evidence. `./gxr connect up` inspects the
+returned categories and warns rather than letting it pass.
+
+**A schemaless property is missing from Kineviz's schema panel but queries fine**
+
+Expected, not a bug. The proxy samples **one row per label** to learn property names. In a
+schemaless graph two nodes with the same label need not carry the same keys, so a property
+present on only some of them may not appear in the panel. Querying it works regardless.
 
 **`experimental_host` is an unexpected keyword argument**
 

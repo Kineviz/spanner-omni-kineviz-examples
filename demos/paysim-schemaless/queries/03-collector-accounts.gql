@@ -1,0 +1,49 @@
+-- The mule shape: an account collecting transfers from a cluster of accounts
+-- that share an identity with each other.
+--
+-- Plain fan-in is not a finding. In 12,000 background transactions across 400
+-- accounts, perfectly ordinary people receive from a dozen counterparties, and
+-- a "top receivers" table is just a popularity contest — try it by deleting
+-- the first MATCH line and watch the planted ring vanish into the noise.
+--
+-- What makes ring B a ring is that its payers are *the same identity wearing
+-- different accounts*, and the collector is a separate clean account, which is
+-- precisely why the ring needs it. That is a graph question, and this is what
+-- it looks like.
+--
+-- The identity check is an EXISTS semi-join rather than a second comma-joined
+-- pattern, and that is not style. Comma-joining
+--     (p1)-[...]->(i)<-[...]-(p2), (p1)-[:performs]->(t)-[:to_client]->(c)
+-- yields one row per (p1, p2, t) combination, so a three-account cluster
+-- counts every transfer twice and SUM(amount) comes out doubled — a number
+-- that looks plausible and is wrong. EXISTS asks "does a twin exist?" without
+-- multiplying the rows.
+--
+-- One Spanner rule to know: a subquery may not REDEFINE an outer graph element
+-- variable. `MATCH (p)-[...]` inside EXISTS is rejected even though `p` is
+-- exactly what you mean. Bind a fresh name and tie it back with an equality
+-- filter — hence `(same:client)` and `same.id = p.id`.
+--
+-- GQL has no HAVING. Aggregate, then start a new statement with NEXT and
+-- FILTER on the aggregate — that is the idiom, not a workaround.
+GRAPH PaysimGraph
+MATCH (p:client)-[:performs]->(t:transaction)-[:to_client]->(collector:client)
+WHERE STRING(t.action) = 'TRANSFER'
+  AND collector.id <> p.id
+  AND EXISTS {
+    MATCH (same:client)-[:has_ssn|has_email|has_phone]->()<-[:has_ssn|has_email|has_phone]-(other:client)
+    WHERE same.id = p.id AND other.id <> p.id
+  }
+RETURN
+  collector.id                  AS collector,
+  STRING(collector.name)        AS collector_name,
+  STRING(collector.client_type) AS account_type,
+  COUNT(DISTINCT p.id)          AS linked_payers,
+  COUNT(*)                      AS transfers,
+  ROUND(SUM(FLOAT64(t.amount)), 2) AS total_in
+GROUP BY collector, collector_name, account_type
+NEXT
+FILTER linked_payers >= 2
+RETURN collector, collector_name, account_type, linked_payers, transfers, total_in
+ORDER BY linked_payers DESC, total_in DESC
+LIMIT 25

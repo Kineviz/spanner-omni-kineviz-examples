@@ -1,0 +1,39 @@
+-- THE query this demo exists for.
+--
+-- Accounts that share an SSN, an email or a phone number. On its own this is
+-- only a signal, not a finding — families share phones, and this dataset
+-- deliberately contains one innocent family so you can watch an
+-- identifier-only rule produce a false positive. Query 02 is what separates
+-- the two.
+--
+-- Two things here are schemaless-specific and worth reading:
+--
+--   * i.label — the node's label is DATA, in a column, not a table name.
+--     Read it from the column, NOT from LABELS()[OFFSET(0)]. In a schemaless
+--     graph every node carries TWO labels: its dynamic one and the table's own
+--     label, `GraphNode`. LABELS() returns them sorted, so OFFSET(0) silently
+--     yields "GraphNode" for every label alphabetically after it — merchant,
+--     phonenumber, ssn, transaction — and the real label for the rest. The
+--     column has no such ambiguity. (GoogleSQL also refuses to GROUP BY an
+--     ARRAY, so LABELS() would need indexing anyway.)
+--   * STRING(i.name) — dynamic properties come back as JSON, not as scalars.
+--     Coerce before you compare, aggregate or sort, or you get a type error
+--     that reads like a missing column. `id` and `label` are the exceptions:
+--     they are real columns, so they are DEFINED properties, they shadow any
+--     same-named JSON key, and they need no coercion.
+--
+-- Count accounts directly rather than matching pairs: a pairwise match with
+-- a.id < b.id reports a 4-account identifier as 3, which is a quietly wrong
+-- number to hand an investigator.
+GRAPH PaysimGraph
+MATCH (c:client)-[:has_ssn|has_email|has_phone]->(i)
+RETURN
+  i.label                          AS identifier_kind,
+  STRING(i.name)                   AS identifier,
+  COUNT(DISTINCT c.id)     AS accounts,
+  STRING_AGG(STRING(c.name), ', ') AS account_names
+GROUP BY identifier_kind, identifier
+NEXT
+FILTER accounts > 1
+RETURN identifier_kind, identifier, accounts, account_names
+ORDER BY accounts DESC, identifier

@@ -35,6 +35,7 @@ verifies it with a real query, and hands you questions to ask.
 |---|---|---|---|---|
 | [`edge-fleet`](demos/edge-fleet/) _(preview)_ | Build a Spanner property graph of a synthetic edge fleet — sites, gateways, devices, firmware and the technicians who cover them — in a Spanner Omni deployment on your own machine, then find what actually falls over when one box does. The premise Omni is for: the data never leaves the site. | intermediate | 12 min | free |
 | [`fraud-rings`](demos/fraud-rings/) _(preview)_ | Build a Spanner property graph of synthetic P2P payments in a Spanner Omni deployment on your own machine, then find the accounts that share a device and move money between themselves. No cloud account, no bill, nothing leaves the laptop. | beginner | 15 min | free |
+| [`paysim-schemaless`](demos/paysim-schemaless/) _(preview)_ | Build a SCHEMALESS Spanner property graph of synthetic PaySim payments — one node table, one edge table, labels and properties carried as data — in a Spanner Omni deployment on your own machine, then find the accounts that share an identity and move money between themselves. Adding a node type is an INSERT, not a schema change. No cloud account, no bill, nothing leaves the laptop. | beginner | 15 min | free |
 
 <!-- END GENERATED DEMOS -->
 
@@ -45,13 +46,16 @@ Generated from each demo's `demo.yaml` — edit that, not this table.
 ```bash
 git clone https://github.com/Kineviz/spanner-omni-kineviz-examples
 cd spanner-omni-kineviz-examples
-./gxr omni up                          # pulls ~1 GB the first time
-cd demos/fraud-rings && cp .env.example .env && cd -
-./gxr up fraud-rings
+./gxr up paysim-schemaless             # graph: pulls ~1 GB the first time
+./gxr connect up paysim-schemaless     # Kineviz: proxy, project, and the URL for Desktop
 ```
 
-`./gxr up` runs preflight, starts the deployment if it isn't running, builds the graph,
-verifies it with the demo's own headline query, and then tells you what to do in Kineviz.
+`./gxr up` creates the demo's `.env` if it is missing, runs preflight, starts the deployment
+if it isn't running, builds the graph, and verifies it with the demo's own headline query.
+`./gxr connect up` then installs and runs the database proxy, registers the database, checks
+the connection *and* the schema it discovered, and prints the URL to paste into Kineviz
+Desktop. The Kineviz Agent needs no separate setup — it inherits whatever the project is
+connected to.
 Prefer to see each command? Every demo README has a step-by-step section with the literal
 `docker` and `spanner` calls.
 
@@ -105,10 +109,18 @@ deployment, plus ~600 MB and 16 GB RAM for Kineviz Desktop. Details in
 
 ## Using an agent
 
-Point Claude Code, Codex, or Cursor at this repo — [`AGENTS.md`](AGENTS.md) tells it how to
-stand a demo up. It will start the deployment, build the graph, verify with a real query, and
-hand back. Three things it won't do, by design: create your Kineviz account, install Desktop,
-or sign in for you.
+Two different agents, and it is worth keeping them apart.
+
+**A coding agent** — Claude Code, Codex, Cursor — stands the demo up. Point it at this repo;
+[`AGENTS.md`](AGENTS.md) tells it how. It will start the deployment, build the graph, verify
+with a real query, and hand back. Three things it won't do, by design: create your Kineviz
+account, install Desktop, or sign in for you.
+
+**The Kineviz Agent** is the assistant inside Kineviz itself, and it asks questions *of the
+graph* once it is on the canvas. It needs no connection of its own — it inherits the
+project's. It does need [`skills/spanner-graph-gql`](skills/), because its built-in database
+knowledge is KoreDB and it will otherwise write the wrong dialect at a Spanner backend. See
+[`connect/README.md`](connect/README.md#4--use-the-kineviz-agent).
 
 ## Repo layout
 
@@ -116,10 +128,12 @@ or sign in for you.
 |---|---|
 | [`connect/`](connect/) | Reach your own Omni graph from Kineviz — standalone |
 | [`demos/`](demos/) | Worked examples |
+| [`skills/`](skills/) | Skills for the Kineviz Agent — GQL, so it doesn't write KoreDB Cypher |
 | [`docs/`](docs/) | Costs, troubleshooting, pre-GA notes |
 | [`AGENTS.md`](AGENTS.md) | Agent entry point |
-| `gxr` | `list · deps · omni · preflight · up · verify · down · doctor` |
+| `gxr` | `list · deps · omni · up · connect · preflight · verify · down · doctor` |
 | `shared/lib/omni.sh` | Everything that drives the deployment |
+| `shared/lib/connect.sh` | Everything that drives the database proxy |
 | `tools/` | `check_contract.py`, `selftest.sh`, `preview.sh`, `gen_index.py` |
 
 ## Related

@@ -63,6 +63,19 @@ Kineviz has **no native Spanner Omni connector**. If you tell someone to open De
 `connect/README.md` has the two routes that work — the database proxy for live GQL, a CSV
 export for a snapshot. Relay the choice; do not invent a third.
 
+For a demo in this repo, the proxy route is one command: `./gxr connect up <slug>`. It
+installs the proxy at a pinned commit into a gitignored `.connect/`, starts it on **loopback
+only**, registers the database, and prints the URL. Run it rather than walking someone
+through the manual steps — but the manual steps stay documented, and they are what you relay
+if someone is connecting their own graph.
+
+**The Kineviz Agent is not a second connection.** It inherits whatever the Desktop project is
+connected to, so there is nothing to configure and nothing for you to set up. What it does
+need is `skills/spanner-graph-gql`, because its built-in database knowledge is KoreDB and it
+will otherwise write KoreDB Cypher against a GQL backend. Copy the skill into the project's
+`.agents/skills/` and say so; do not claim the Agent is "connected to Spanner", because it is
+not — it reads the project's schema and drives the canvas.
+
 ## Three things only the person can do
 
 Kineviz Desktop is the documented deployment. You cannot:
