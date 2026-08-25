@@ -17,8 +17,7 @@ Run one from the shell:
 
 ```bash
 set -a; . ../.env; set +a
-../../../.venv/bin/python ../../../tools/omni_sql.py \
-  --database "$OMNI_DATABASE" --sql "$(cat 01-shared-devices.gql)"
+../../../gxr omni query "$OMNI_DATABASE" 01-shared-devices.gql
 ```
 
 Or paste it into the interactive shell, which is the nicer way to iterate:

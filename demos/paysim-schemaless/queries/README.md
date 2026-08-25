@@ -12,12 +12,18 @@ Four questions, in the order an investigator would actually ask them.
 ## Running them
 
 ```bash
-# in the SQL shell
-./gxr omni sql kineviz-paysim-demo
+# run a file — strips the comments and submits the statement for you
+../../../gxr omni query kineviz-paysim-demo 01-shared-identifiers.gql
 
-# or one at a time, from this directory
-../../../gxr omni sql kineviz-paysim-demo < 01-shared-identifiers.gql
+# or open the interactive shell and paste, to iterate
+../../../gxr omni sql kineviz-paysim-demo
 ```
+
+Two things about the interactive shell, both of which look like the query is
+broken when they are not. It needs a **trailing semicolon** — without one it
+silently keeps reading. And you cannot pipe a file into it: it runs under
+`docker exec -it`, so `... omni sql <db> < file.gql` fails with *"cannot attach
+stdin to a TTY-enabled container"*. That is what `omni query` is for.
 
 The graph name is hardcoded as `PaysimGraph`. If you changed `OMNI_GRAPH` in
 `.env`, change it here too — a `${VAR}` in a query file is not substituted by
