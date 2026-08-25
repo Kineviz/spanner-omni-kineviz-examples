@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Prove the graph is genuinely schemaless — by changing it, live.
+set -euo pipefail
 #
 # Not part of the demo lifecycle: `./gxr up` never runs this. It exists because
 # "trust me, it's schemaless" is not a demo, and the argument only lands when
@@ -21,7 +22,6 @@
 # statement in a read-only snapshot, so DML through Kineviz comes back as
 # "DML statements may not be performed in single-use transactions". That is
 # also the honest shape of a real deployment: applications write, Kineviz reads.
-set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/../../../shared/lib/common.sh"
 eval "$(parse_common_flags "$@")"
 # shellcheck disable=SC2034  # read by the logging helpers in common.sh
