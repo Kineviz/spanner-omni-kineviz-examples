@@ -34,6 +34,18 @@ PROXY_LOG="$CONNECT_DIR/proxy.log"
 proxy_base_url() { printf 'http://127.0.0.1:%s' "${PROXY_PORT:-9080}"; }
 proxy_api_url()  { printf '%s/api/spanner/%s' "$(proxy_base_url)" "${PROXY_PROJECT:?}"; }
 
+# The pid of a proxy started from THIS repo's .connect/proxy, found by its
+# command line rather than by the pidfile. Needed because `rm -rf .connect`
+# deletes the pidfile and orphans a running process — after which `connect down`
+# has nothing to stop and `connect up` correctly refuses the busy port, leaving
+# someone stuck with no obvious way out.
+#
+# Matching on $PROXY_DIR is what makes killing it safe: it can only ever match a
+# process launched from this checkout, never someone else's proxy on the port.
+proxy_orphan_pid() {
+  pgrep -f "$PROXY_DIR/.venv/bin/python" 2>/dev/null | head -1
+}
+
 proxy_running() {
   [ -f "$PROXY_PID" ] || return 1
   kill -0 "$(cat "$PROXY_PID")" 2>/dev/null
@@ -123,6 +135,22 @@ sys.exit(0 if s.connect_ex(("127.0.0.1", int(sys.argv[1]))) == 0 else 1)
 ' "${PROXY_PORT:-9080}" 2>/dev/null
 }
 
+# Fail before doing any work if the port is taken by something we cannot
+# manage. Called first by `connect up` so a busy port does not cost a clone and
+# a pip install before it is noticed.
+proxy_port_available() {
+  proxy_running && return 0          # ours, already up: nothing to check
+  port_in_use || return 0            # free
+
+  local orphan; orphan=$(proxy_orphan_pid)
+  if [ -n "$orphan" ]; then
+    die "Port ${PROXY_PORT:-9080} is held by a proxy this repo started (pid $orphan), but its pidfile is gone." \
+        "Stop it with './gxr connect down' — that now finds it by its command line — then re-run."
+  fi
+  die "Port ${PROXY_PORT:-9080} is already in use, and not by a proxy this repo started." \
+      "Stop whatever is on it, or set PROXY_PORT to a free port in the demo's .env. To find it: lsof -nP -iTCP:${PROXY_PORT:-9080} -sTCP:LISTEN"
+}
+
 proxy_start() {
   if proxy_running; then
     ok "proxy already running on $(proxy_base_url) (pid $(cat "$PROXY_PID"))"
@@ -134,10 +162,7 @@ proxy_start() {
   # URL served by a process we do not control — while the one we just launched
   # died of "address already in use". That failure is silent, and the symptom
   # surfaces much later as a confusing error from an unrelated request.
-  if port_in_use; then
-    die "Port ${PROXY_PORT:-9080} is already in use, and not by a proxy this repo started." \
-        "Stop whatever is on it, or set PROXY_PORT to a free port in the demo's .env. To find it: lsof -nP -iTCP:${PROXY_PORT:-9080} -sTCP:LISTEN"
-  fi
+  proxy_port_available
 
   # 127.0.0.1, never 0.0.0.0. This fronts a deployment with no TLS and no
   # authentication; anyone who can reach it owns every database on it.
@@ -176,6 +201,13 @@ proxy_start() {
 
 proxy_stop() {
   if ! proxy_running; then
+    local orphan; orphan=$(proxy_orphan_pid)
+    if [ -n "$orphan" ]; then
+      kill "$orphan" 2>/dev/null || true
+      rm -f "$PROXY_PID"
+      ok "stopped an orphaned proxy (pid $orphan) — its pidfile was gone"
+      return 0
+    fi
     info "proxy is not running"
     rm -f "$PROXY_PID"
     return 0
