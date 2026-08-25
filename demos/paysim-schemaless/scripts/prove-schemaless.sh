@@ -29,6 +29,20 @@ GXR_STEP=prove
 DEMO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 QUERY_FILE="$DEMO_DIR/queries/05-prove-schemaless.sql"
 
+# --keep leaves the added types in place; --undo removes them and stops.
+# Without them the script inserts and cleans up in one run, which is right for
+# a check and useless for a demo: nobody can look at Kineviz in the second
+# between the insert and the delete.
+KEEP=0; UNDO_ONLY=0
+for arg in "$@"; do
+  case "$arg" in
+    --keep) KEEP=1 ;;
+    --undo) UNDO_ONLY=1 ;;
+    --json) ;;
+    *) die "Unknown flag: $arg" "Usage: ./scripts/prove-schemaless.sh [--keep] [--undo] [--json]" ;;
+  esac
+done
+
 step "Proving the graph is schemaless"
 
 load_env "$DEMO_DIR"
@@ -46,7 +60,15 @@ cleanup() {
   omni_sql "$OMNI_DATABASE" \
     "DELETE FROM GraphNode WHERE id='$NODE_ID'" >/dev/null 2>&1 || true
 }
-trap cleanup EXIT INT TERM
+if [ "$UNDO_ONLY" = 1 ]; then
+  cleanup
+  ok "removed :regulator and :reported_to (if they were there)"
+  exit 0
+fi
+
+# Only arm the trap when we intend to clean up. With --keep the rows are the
+# point, and undoing them on exit would defeat it.
+[ "$KEEP" = 1 ] || trap cleanup EXIT INT TERM
 
 # Start from a known state: a previous interrupted run may have left rows.
 cleanup
@@ -119,6 +141,12 @@ print(", ".join(c["name"] for c in (d.get("data") or {}).get("categories", [])))
 else
   info "database proxy not running — skipping the Kineviz check"
   dim "start it with './gxr connect up paysim-schemaless' to see the category appear there too"
+fi
+
+if [ "$KEEP" = 1 ]; then
+  ok "left :regulator and :reported_to in place (--keep)"
+  info "look at it in Kineviz, then undo with: ./scripts/prove-schemaless.sh --undo"
+  exit 0
 fi
 
 info "6 · removing what this added"

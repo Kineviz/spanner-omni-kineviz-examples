@@ -205,8 +205,14 @@ adds a node type and an edge type with no DDL, asserts that the catalog did **no
 while the data did, and removes what it added:
 
 ```bash
-./scripts/prove-schemaless.sh
+./scripts/prove-schemaless.sh           # insert, assert, and undo in one run
+./scripts/prove-schemaless.sh --keep    # leave the new types in place to look at
+./scripts/prove-schemaless.sh --undo    # remove them again
 ```
+
+To run it as a demo in the Kineviz GUI rather than the terminal, follow
+[`queries/README.md`](queries/README.md#in-the-kineviz-gui) — `--keep` is what
+makes the new category stay long enough to point at.
 
 Run query 2 on the Kineviz canvas rather than in a terminal — a ring is a shape, and a table
 of account ids is the one representation that hides it.

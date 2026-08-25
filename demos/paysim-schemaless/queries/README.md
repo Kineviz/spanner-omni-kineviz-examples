@@ -83,18 +83,55 @@ It cleans up on every exit path — success, failure, or Ctrl-C — and clears a
 rows a previous interrupted run left behind before it starts, so the demo
 dataset is always left as it was found.
 
+### In the Kineviz GUI
+
+The version to run in front of an audience, because the schema panel changing
+is the part people believe. Start the proxy and connect Desktop first
+([`connect/README.md`](../../../connect/README.md) § 3 · Connect).
+
+1. Open the query panel — the `</>` icon in the left rail — and pick the
+   **Query** tab. For a Database Proxy project that tab posts what you type
+   straight to the proxy, so every file in this folder works there, comments
+   and all. The `limit` box does not apply: the request carries only your text.
+2. Paste [`05-prove-schemaless.sql`](05-prove-schemaless.sql) and run it. Two
+   rows: the schema knows `GraphNode`, the data carries seven labels.
+3. In a terminal, add the new types and leave them there:
+
+   ```bash
+   ../scripts/prove-schemaless.sh --keep
+   ```
+
+4. Run the same query again in the Query tab, unchanged. The schema row is
+   identical. The data row now lists eight, including `regulator`.
+5. Put the new type on the canvas — this one returns graph elements rather than
+   a table, so it draws:
+
+   ```
+   GRAPH PaysimGraph
+   MATCH (c:client)-[r:reported_to]->(g:regulator)
+   RETURN c, r, g
+   ```
+
+6. Reopen the project to see `regulator` in the schema panel. Kineviz fetches
+   the graph schema once per project session and caches it, so a category added
+   while the project is open does not appear until you reopen it. The proxy
+   itself has it immediately — `GET /graphSchema` proves that without a restart.
+7. Put it back:
+
+   ```bash
+   ../scripts/prove-schemaless.sh --undo
+   ```
+
 The writes go through the CLI, not through Kineviz: the database proxy runs
 everything in a read-only snapshot, so DML there comes back as *"DML statements
 may not be performed in single-use transactions"*. Applications write, Kineviz
 reads.
 
-One thing to check before you debug the wrong layer: the query panel currently
-renders a proxy-side error as **0 rows and no message**, because it reads the
-response's `data` field and ignores `success` and `error`
-(`DatabaseProxyRequest.excuteCommand`). So a rejected `INSERT` looks exactly
-like a query that legitimately matched nothing. If a statement you expect to
-work returns 0 rows, re-run it with `gxr omni query` — the CLI prints the real
-error.
+If a statement you expect to work comes back as **0 rows with no message**,
+your Kineviz build predates the fix that surfaces proxy-side errors: the
+adapter used to read the response's `data` field and ignore `success` and
+`error`, so a rejected statement looked exactly like one that matched nothing.
+Re-run it with `gxr omni query`, which prints the real error either way.
 
 ## What you should find
 
