@@ -201,7 +201,25 @@ cmd_down() {
   local dir; dir=$(demo_path "$1")
   if [ "$GXR_JSON" != 1 ]; then
     printf '\n  This deletes what %s created:\n' "$1"
-    sed -n '/creates:/,/^[a-z]/p' "$dir/demo.yaml" | sed -n 's/.*- /    · /p'
+    # Print the `creates:` entries and nothing else. The obvious range —
+    # /creates:/,/^[a-z]/ — runs until a line starts at column 0, which in a
+    # demo.yaml means it sweeps up the step ids that follow and offers to
+    # delete "id: verify". Wrong on the one prompt that has to be trustworthy.
+    # So: track indentation, and stop at the first line indented no further
+    # than `creates:` itself.
+    awk '
+      match($0, /[^ ]/) && $0 ~ /^[[:space:]]*creates:[[:space:]]*$/ {
+        ind = match($0, /[^ ]/); inblock = 1; next
+      }
+      inblock {
+        cur = match($0, /[^ ]/)
+        if (cur == 0 || cur <= ind) { inblock = 0; next }
+        if ($0 ~ /^[[:space:]]*-[[:space:]]/) {
+          sub(/^[[:space:]]*-[[:space:]]*/, ""); gsub(/^"|"$/, "")
+          print "    · " $0
+        }
+      }
+    ' "$dir/demo.yaml"
     printf '\n'
     confirm "Delete them?" || { info "Nothing deleted."; exit 0; }
   fi
