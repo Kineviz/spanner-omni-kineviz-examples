@@ -50,7 +50,9 @@ cat <<EOF
      tells them apart.
 
    What makes this the schemaless demo: there are two tables. Labels and
-   properties are columns, not schema. Adding a node type is an INSERT.
+   properties are columns, not schema. Adding a node type is an INSERT — and
+   you can watch that happen, with the dataset put back afterwards:
+     ./scripts/prove-schemaless.sh
 
    Cost so far: ~\$0.00 — nothing billable exists. This ran on your hardware.
    Tear down with:  ./gxr down paysim-schemaless   (drops the database, keeps the deployment)

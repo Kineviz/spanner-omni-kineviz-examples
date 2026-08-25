@@ -1,7 +1,7 @@
 -- Tables and the property graph for the fraud-rings demo.
 --
--- Applied by scripts/setup.sh via tools/omni_sql.py --ddl-file, which submits
--- the whole file as one DDL batch through the Spanner Python client. The file
+-- Applied by scripts/setup.sh via `spanner databases ddl update --ddl-file`,
+-- which submits the whole file as one DDL batch. The file
 -- is plain Spanner GoogleSQL DDL — the same statements you would run against
 -- managed Spanner, because Spanner Omni is the same database.
 --

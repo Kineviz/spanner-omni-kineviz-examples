@@ -8,16 +8,23 @@ Four questions, in the order an investigator would actually ask them.
 | 2 | Which of those also move money to each other? | [`02-fraud-rings.gql`](02-fraud-rings.gql) |
 | 3 | Which accounts collect from an identity cluster? | [`03-collector-accounts.gql`](03-collector-accounts.gql) |
 | 4 | Where does the value leave the network? | [`04-cash-out.gql`](04-cash-out.gql) |
+| 5 | *Is this actually schemaless?* | [`05-prove-schemaless.sql`](05-prove-schemaless.sql) |
 
 ## Running them
 
 ```bash
-# in the SQL shell
-./gxr omni sql kineviz-paysim-demo
+# run a file — strips the comments and submits the statement for you
+../../../gxr omni query kineviz-paysim-demo 01-shared-identifiers.gql
 
-# or one at a time, from this directory
-../../../gxr omni sql kineviz-paysim-demo < 01-shared-identifiers.gql
+# or open the interactive shell and paste, to iterate
+../../../gxr omni sql kineviz-paysim-demo
 ```
+
+Two things about the interactive shell, both of which look like the query is
+broken when they are not. It needs a **trailing semicolon** — without one it
+silently keeps reading. And you cannot pipe a file into it: it runs under
+`docker exec -it`, so `... omni sql <db> < file.gql` fails with *"cannot attach
+stdin to a TTY-enabled container"*. That is what `omni query` is for.
 
 The graph name is hardcoded as `PaysimGraph`. If you changed `OMNI_GRAPH` in
 `.env`, change it here too — a `${VAR}` in a query file is not substituted by
@@ -25,6 +32,71 @@ anything, and CI rejects one.
 
 Run query 2 in Kineviz rather than in a terminal. A ring is a shape, and a
 table of account ids is the one representation that hides it.
+
+## Proving it is really schemaless
+
+`MATCH (n) RETURN DISTINCT n.label` proves nothing — it says a column called
+`label` has seven values, and a static graph could have a column called `label`
+too. What cannot be faked is the gap between what the catalog knows and what the
+data contains:
+
+```bash
+../../../gxr omni query kineviz-paysim-demo 05-prove-schemaless.sql
+```
+
+or paste it into the **Query** tab of the Kineviz query panel — that tab posts
+whatever you type straight to the proxy, so all five files here work there.
+Strip the `--` comments first if you paste the whole file.
+
+```
+source      dynamic_label_column  labels
+the schema  label                 GraphNode
+the data    label                 bank, client, email, merchant, phonenumber, ssn, transaction
+```
+
+The graph *declares* a dynamic label column, and the catalog knows one label
+while the data carries seven. Labels are not in the schema, because here labels
+are not schema.
+
+### The live version
+
+Reading it is one thing; watching it is another. This adds a node type and an
+edge type that do not exist, queries them, shows both sides again, and removes
+what it added:
+
+```bash
+../scripts/prove-schemaless.sh
+```
+
+```
+  ✓ the catalog knows 1 label; the data carries 7
+  ✓ inserted :regulator and :reported_to
+  ✓ queryable immediately, with no migration in between
+  ✓ schema unchanged (GraphNode); data went from 7 labels to 8
+  ✓ Kineviz sees it too, with no reconnect: bank, client, …, regulator, …
+  ✓ back to 7 labels — the dataset is as it was
+```
+
+The assertion that matters is the fourth line: the catalog row is **identical**
+before and after, while the data row grows. The script fails if that is not
+true, so it is a test rather than a demonstration.
+
+It cleans up on every exit path — success, failure, or Ctrl-C — and clears any
+rows a previous interrupted run left behind before it starts, so the demo
+dataset is always left as it was found.
+
+The writes go through the CLI, not through Kineviz: the database proxy runs
+everything in a read-only snapshot, so DML there comes back as *"DML statements
+may not be performed in single-use transactions"*. That is also the honest shape
+of a real deployment — applications write, Kineviz reads.
+
+Worth knowing before you debug the wrong thing: the query panel currently
+renders a proxy-side error as **0 rows and no message**, because it reads the
+response's `data` field and ignores `success` and `error`
+(`DatabaseProxyRequest.excuteCommand`). So a rejected `INSERT` looks exactly
+like a query that legitimately matched nothing. If a statement you expect to
+work returns 0 rows, re-run it with `gxr omni query` — the CLI prints the real
+error.
 
 ## What you should find
 

@@ -5,7 +5,8 @@
 #   ./gxr list                list demos and their status
 #   ./gxr deps                optional: .venv/ with the Spanner Python client
 #   ./gxr omni up|status|down manage the local Spanner Omni deployment
-#   ./gxr omni sql <db>       open the Spanner Omni SQL shell
+#   ./gxr omni sql <db>       open the interactive Spanner Omni SQL shell
+#   ./gxr omni query <db> <f> run a .gql/.sql file and print the result
 #   ./gxr up <slug>           preflight → setup → verify → handoff
 #   ./gxr connect up <slug>   install+run the database proxy, print the Kineviz URL
 #   ./gxr connect status|down manage that proxy
@@ -27,7 +28,7 @@ for arg in "$@"; do
 done
 
 usage() {
-  sed -n '3,18p' "$REPO_ROOT/gxr" | sed 's/^# \{0,1\}//'
+  sed -n '3,19p' "$REPO_ROOT/gxr" | sed 's/^# \{0,1\}//'
   exit "${1:-0}"
 }
 
@@ -135,6 +136,24 @@ cmd_omni() {
       [ $# -ge 1 ] || die "Which database?" "Usage: ./gxr omni sql <database>"
       omni_require_running
       omni_shell "$1"
+      ;;
+
+    # Run a query FILE. The interactive shell above cannot: it is
+    # `docker exec -it`, so redirecting a file into it fails with Docker's
+    # "cannot attach stdin to a TTY-enabled container", and the .gql files
+    # carry `--` comments and no trailing semicolon, neither of which that
+    # shell accepts. This strips the comments and submits the statement the
+    # same way the demo scripts already do.
+    query|run)
+      [ $# -ge 2 ] || die "Which database, and which file?" \
+        "Usage: ./gxr omni query <database> <file.gql>"
+      [ -f "$2" ] || die "No such query file: $2" \
+        "Give a path to a .gql or .sql file — the demos keep theirs in demos/<slug>/queries/."
+      omni_require_running
+      local q; q=$(omni_strip_comments < "$2")
+      [ -n "$q" ] || die "$2 has no statement in it." \
+        "The file is empty once its comments are stripped."
+      omni_sql "$1" "$q"
       ;;
     down|stop)
       omni_stop
