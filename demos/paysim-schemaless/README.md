@@ -198,6 +198,7 @@ routes that work, what they cost you, and how to run the proxy by hand are all i
 | 2 | Which of those also move money to each other? | [`queries/02-fraud-rings.gql`](queries/02-fraud-rings.gql) |
 | 3 | Which accounts collect from an identity cluster? | [`queries/03-collector-accounts.gql`](queries/03-collector-accounts.gql) |
 | 4 | Where does the value leave the network? | [`queries/04-cash-out.gql`](queries/04-cash-out.gql) |
+| 5 | Is this actually schemaless? | [`queries/05-prove-schemaless.sql`](queries/05-prove-schemaless.sql) |
 
 Run query 2 on the Kineviz canvas rather than in a terminal — a ring is a shape, and a table
 of account ids is the one representation that hides it.
@@ -310,7 +311,9 @@ the deployment itself is a separate, deliberate act:
 - Try the other demos: [`fraud-rings`](../fraud-rings/) is the same fraud question on a
   **standard** Spanner Graph schema — a useful side-by-side if you are deciding between the
   two — and [`edge-fleet`](../edge-fleet/) is dependency analysis on an IoT fleet.
-- Add a node type without touching the schema. Insert a row into `GraphNode` with a new label
-  and re-run `graphSchema` on the proxy: the new category appears. That is the demo inside the
-  demo.
+- Prove it is schemaless rather than take the word for it —
+  [`queries/05-prove-schemaless.sql`](queries/05-prove-schemaless.sql) puts what the catalog
+  knows next to what the data contains, and carries the live version: two `INSERT`s that add a
+  node type and an edge type with no DDL, no schema update and no restart. The new category
+  shows up in Kineviz without reconnecting. That is the demo inside the demo.
 - Point the Kineviz Agent at it — [`../../connect/README.md`](../../connect/README.md#4--use-the-kineviz-agent).
