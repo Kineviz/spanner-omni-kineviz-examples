@@ -28,6 +28,10 @@ thing query 5 below does that `:schema` cannot.
 
 ### The insert runs here too
 
+[`../../media/schemaless-proof.mp4`](../../media/schemaless-proof.mp4) is 47 seconds of
+exactly this, recorded against a live deployment.
+
+
 You do not have to leave Kineviz to make the point. Paste these into the same
 Query tab:
 

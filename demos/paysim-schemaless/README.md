@@ -22,6 +22,14 @@ The consequence worth demoing: **adding a node type is an `INSERT`.** No DDL, no
 update, no coordination. That is why a proof of concept picks schemaless, and it is what this
 demo exists to show working end to end — into Kineviz Desktop, with the Kineviz Agent attached.
 
+Here is that claim, run against a live deployment in 47 seconds — `:schema`, an `INSERT` that
+adds a node type and an edge type, the new labels appearing in Kineviz, and both deleted
+again. No DDL anywhere in it.
+
+<video src="https://github.com/Kineviz/spanner-omni-kineviz-examples/raw/main/demos/paysim-schemaless/media/schemaless-proof.mp4" controls muted width="100%"></video>
+
+*(If the player does not load, the file is [`media/schemaless-proof.mp4`](media/schemaless-proof.mp4).)*
+
 Spanner Omni is **pre-GA**. Nothing here is billable and nothing leaves the host.
 
 ## At a glance
