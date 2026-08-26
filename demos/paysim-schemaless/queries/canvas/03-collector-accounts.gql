@@ -1,0 +1,16 @@
+-- The mule shape, drawn: an account collecting transfers from a cluster of
+-- accounts that share an identity with each other.
+--
+-- One continuous path, for the reason given in 02: p2 shares an identifier
+-- with p1, p1 performs a transfer, the transfer lands on the collector. The
+-- collector itself shares nothing with anyone, which is why query 01 cannot
+-- find it and this can.
+--
+-- Look for the account whose client_type is MULE. In the seeded data that is
+-- C0394, ring B's collector.
+--
+-- Kineviz only. See README.md in this folder.
+GRAPH PaysimGraph
+MATCH (p2:client)-[r2:has_ssn|has_email|has_phone]->(i)<-[r1:has_ssn|has_email|has_phone]-(p1:client)-[perf:performs]->(t:transaction)-[tc:to_client]->(c:client)
+WHERE p1.id <> p2.id AND c.id <> p1.id AND c.id <> p2.id AND STRING(t.action) = 'TRANSFER'
+RETURN p2, r2, i, r1, p1, perf, t, tc, c

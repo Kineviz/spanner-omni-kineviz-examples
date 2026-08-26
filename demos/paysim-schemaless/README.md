@@ -215,7 +215,9 @@ To run it as a demo in the Kineviz GUI rather than the terminal, follow
 makes the new category stay long enough to point at.
 
 Run query 2 on the Kineviz canvas rather than in a terminal — a ring is a shape, and a table
-of account ids is the one representation that hides it.
+of account ids is the one representation that hides it. [`queries/canvas/`](queries/canvas/)
+has all four written to return nodes and edges for exactly that, alongside the table versions
+that run anywhere.
 
 The seeded data plants two rings, a third-party takeover leg, and **one innocent family**:
 three Oliveiras who share a phone and never transfer to each other. They show up in query 1

@@ -10,6 +10,11 @@ Four questions, in the order an investigator would actually ask them.
 | 4 | Where does the value leave the network? | [`04-cash-out.gql`](04-cash-out.gql) |
 | 5 | *Is this actually schemaless?* | [`05-prove-schemaless.sql`](05-prove-schemaless.sql) |
 
+Each of these returns a **table**, and each runs in the CLI and in Kineviz.
+[`canvas/`](canvas/) has the same four questions written to return **nodes and
+edges**, so the answer lands on the Kineviz canvas as a shape — those are
+Kineviz-only, because Spanner will not hand a graph element back to a client.
+
 ## Running them
 
 ```bash

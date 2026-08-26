@@ -1,0 +1,14 @@
+-- Accounts that share an identity, as a subgraph.
+--
+-- Same question as ../01-shared-identifiers.gql, different answer shape: that
+-- one counts, this one draws. Run it in the Kineviz Query tab and the clusters
+-- appear as stars — an SSN or phone in the middle with two or more accounts
+-- hanging off it. The innocent Oliveira family is one of them, which is the
+-- whole argument for query 02.
+--
+-- Kineviz only. See README.md in this folder for why, and for the three words
+-- that must stay out of these comments.
+GRAPH PaysimGraph
+MATCH (a:client)-[r1:has_ssn|has_email|has_phone]->(i)<-[r2:has_ssn|has_email|has_phone]-(b:client)
+WHERE a.id < b.id
+RETURN a, r1, i, r2, b

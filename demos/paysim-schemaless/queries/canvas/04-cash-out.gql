@@ -1,0 +1,14 @@
+-- Where the value leaves, drawn: clients cashing out at the three high-risk
+-- merchants. The merchants are the hubs; the planted mules are the accounts
+-- with the largest transactions hanging off them.
+--
+-- Wider than the others on purpose — around 210 nodes — because the shape
+-- worth seeing is the fan-in to three merchants, not one path. Ordering and a
+-- row cap are absent here and present in ../04-cash-out.gql: ranking belongs
+-- to the table version, which is the one that can express it.
+--
+-- Kineviz only. See README.md in this folder.
+GRAPH PaysimGraph
+MATCH (c:client)-[perf:performs]->(t:transaction)-[tm:to_merchant]->(m:merchant)
+WHERE BOOL(m.highrisk) AND STRING(t.action) IN ('CASH_OUT', 'PAYMENT') AND FLOAT64(t.amount) > 1000
+RETURN c, perf, t, tm, m

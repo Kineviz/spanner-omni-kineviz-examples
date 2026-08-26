@@ -1,0 +1,15 @@
+-- The rings, drawn: accounts that share an identity AND move money to each
+-- other. This is the one to run in front of someone.
+--
+-- Written as a single closed path rather than two comma-joined patterns, and
+-- that is not style. A path variable binds only the first pattern in a
+-- comma-joined list, so the second one still constrains the result while its
+-- nodes and edges never reach the canvas — a picture that is quietly missing
+-- half of itself. Written this way, the identity hop out and the money hop
+-- back are one path, so the whole ring lands.
+--
+-- Kineviz only. See README.md in this folder.
+GRAPH PaysimGraph
+MATCH (a:client)-[r1:has_ssn|has_email|has_phone]->(i)<-[r2:has_ssn|has_email|has_phone]-(b:client)<-[tc:to_client]-(t:transaction)<-[perf:performs]-(a)
+WHERE a.id <> b.id
+RETURN a, r1, i, r2, b, tc, t, perf
