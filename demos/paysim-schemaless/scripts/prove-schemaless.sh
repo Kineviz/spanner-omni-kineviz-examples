@@ -18,10 +18,12 @@ set -euo pipefail
 # Step 6 runs on every exit path, including failure and Ctrl-C, so the demo
 # dataset is left exactly as it was found.
 #
-# The writes go through the CLI on purpose. The database proxy runs every
-# statement in a read-only snapshot, so DML through Kineviz comes back as
-# "DML statements may not be performed in single-use transactions". Applications
-# write, Kineviz reads.
+# This is the checked version: it asserts, and it cleans up on every exit path.
+# The same four statements can be pasted into the Kineviz Query tab instead —
+# connect/proxy/spanner_omni_driver.py routes DML to a read-write transaction,
+# so the panel can insert and delete as well as read. See
+# queries/canvas/README.md. Use this when you want the claim tested; use the
+# panel when you want it seen.
 source "$(dirname "${BASH_SOURCE[0]}")/../../../shared/lib/common.sh"
 eval "$(parse_common_flags "$@")"
 # shellcheck disable=SC2034  # read by the logging helpers in common.sh

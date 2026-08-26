@@ -67,12 +67,15 @@ not of this file.
 
 from __future__ import annotations
 
+import re
+
 from typing import Optional
 
 from google.cloud import spanner
 from google.cloud.spanner_v1 import Client
 
 from .spanner import SpannerDriver
+from ..models.project import QueryData
 
 # Fixed by Spanner Omni. The Java documentation spells it out as
 # DatabaseId.of("default", "default", DATABASE_ID); every client library needs
@@ -166,6 +169,46 @@ class SpannerOmniDriver(SpannerDriver):
             raise ConnectionError(
                 f"Failed to connect to Spanner Omni at {endpoint}: {e}"
             ) from e
+
+    # Statements that need a read-write transaction. Anchored, because a
+    # SELECT may perfectly well contain the word "update" in a string.
+    _DML = re.compile(r"^\s*(INSERT|UPDATE|DELETE)\b", re.IGNORECASE)
+
+    def _execute_sql_query(self, query: str, parameters=None):
+        """Run a statement, using a read-write transaction when it writes.
+
+        The inherited implementation runs everything in `database.snapshot()`,
+        which is read-only, so any DML comes back as
+
+            DML statements may not be performed in single-use transactions,
+            to avoid replay.
+
+        That is correct for managed Spanner behind a shared proxy, and wrong
+        for this demo: a schemaless graph's whole claim is that adding a node
+        type is an INSERT, and asking someone to leave the tool to run one
+        undercuts the demonstration. So writes are routed to a transaction and
+        reads are left exactly as they were.
+
+        WHAT THIS MEANS FOR THE DEPLOYMENT. Anyone who can reach the proxy can
+        now write to it, not merely read. That is a smaller change than it
+        sounds — Spanner Omni's preview build has no authentication at all, so
+        anyone who could reach the proxy could already reach the database
+        directly — but it is a change, and it is the reason the proxy binds to
+        127.0.0.1 and nothing else.
+        """
+        # `run_in_transaction` retries its callable, so it must stay free of
+        # side effects other than the statement itself.
+        if self._DML.match(query or ""):
+            def _apply(transaction):
+                return transaction.execute_update(query, params=parameters or None)
+
+            rows = self.database.run_in_transaction(_apply)
+            return QueryData(
+                type="TABLE",
+                data=[{"rows_affected": rows}],
+            )
+
+        return super()._execute_sql_query(query, parameters)
 
     async def disconnect(self) -> Optional[None]:
         return await super().disconnect()

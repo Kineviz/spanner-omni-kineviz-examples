@@ -140,10 +140,13 @@ is the part people believe. Start the proxy and connect Desktop first
    ../scripts/prove-schemaless.sh --undo
    ```
 
-The writes go through the CLI, not through Kineviz: the database proxy runs
-everything in a read-only snapshot, so DML there comes back as *"DML statements
-may not be performed in single-use transactions"*. Applications write, Kineviz
-reads.
+The writes run in either place. `connect/proxy/spanner_omni_driver.py` routes
+DML to a read-write transaction, so the two `INSERT`s and the two `DELETE`s work
+in the Kineviz Query tab as well as the CLI — see
+[`canvas/README.md`](canvas/README.md). Without that override the proxy runs
+everything in a read-only snapshot and answers *"DML statements may not be
+performed in single-use transactions"*. The script is still the version with an
+assertion attached and cleanup on every exit path.
 
 If a statement you expect to work comes back as **0 rows with no message**,
 your Kineviz build predates the fix that surfaces proxy-side errors: the

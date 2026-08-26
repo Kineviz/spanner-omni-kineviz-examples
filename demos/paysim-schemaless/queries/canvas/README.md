@@ -26,6 +26,45 @@ those labels was discovered by **reading rows**, because the catalog knows only
 added mid-session appears only after you reopen the project. That is the one
 thing query 5 below does that `:schema` cannot.
 
+### The insert runs here too
+
+You do not have to leave Kineviz to make the point. Paste these into the same
+Query tab:
+
+```sql
+INSERT INTO GraphNode (id, label, properties)
+VALUES ('regulator_R01', 'regulator',
+        JSON'{"name": "Financial Conduct Authority", "jurisdiction": "UK"}')
+```
+
+```sql
+INSERT INTO GraphEdge (id, dest_id, edge_id, label, properties)
+VALUES ('client_C0394', 'regulator_R01', 'sar1', 'reported_to',
+        JSON'{"filed": "2026-02-01", "reason": "structuring"}')
+```
+
+Each answers `rows_affected 1`. Re-run query 5 and the new type is on the
+canvas. Undo in the same panel:
+
+```sql
+DELETE FROM GraphEdge WHERE id='client_C0394' AND dest_id='regulator_R01' AND edge_id='sar1';
+```
+```sql
+DELETE FROM GraphNode WHERE id='regulator_R01';
+```
+
+This works because `connect/proxy/spanner_omni_driver.py` routes writes to a
+read-write transaction; the proxy's own driver runs everything in a read-only
+snapshot and answers *"DML statements may not be performed in single-use
+transactions"*. `../../scripts/prove-schemaless.sh` does the same thing from a
+terminal, with an assertion attached and cleanup on every exit path — use that
+when you want it checked rather than shown.
+
+**The deployment accepts writes from anything that can reach the proxy.** That
+is a smaller change than it sounds, since the preview build of Spanner Omni has
+no authentication at all, but it is the reason the proxy binds to 127.0.0.1 and
+nothing else.
+
 ### Query 5 is the live view
 
 **It works either side of the insert.** As-is it draws the four mule
