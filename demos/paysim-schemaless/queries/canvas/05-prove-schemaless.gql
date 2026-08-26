@@ -3,6 +3,12 @@
 -- ../05-prove-schemaless.sql makes the argument as two rows: the catalog knows
 -- one label, the data carries seven. This makes it as a picture.
 --
+-- For the label space alone, Kineviz has this built in: type `:schema` into the
+-- Query tab and it draws one node per label and one edge per relationship type,
+-- every one of them discovered by reading rows. Use that first. It draws a copy
+-- cached when the project opened, though, so a label added mid-session shows up
+-- only after a reopen — this file queries the database and does not need one.
+--
 -- Run it as-is and you get the four mule accounts with their SSN, email and
 -- phone: sixteen nodes, all of them labels that exist only because a row says
 -- so. Then, in a terminal:

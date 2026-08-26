@@ -15,7 +15,20 @@ Paste one into the **Query** tab of the Kineviz query panel and run it. Each is 
 single statement; they accumulate on the canvas, so running 1 then 2 leaves the
 identity clusters in place and draws the money over them.
 
-**Query 5 works either side of the insert.** As-is it draws the four mule
+### The shortest proof is `:schema`
+
+Type `:schema` into the Query tab. Kineviz draws its schema as a graph — one node
+per label, one edge per relationship type — and on this database every one of
+those labels was discovered by **reading rows**, because the catalog knows only
+`GraphNode` and `GraphEdge`. A picture of a schema that is not in the schema.
+
+`:schema` draws the cached copy, fetched once when the project opened, so a label
+added mid-session appears only after you reopen the project. That is the one
+thing query 5 below does that `:schema` cannot.
+
+### Query 5 is the live view
+
+**It works either side of the insert.** As-is it draws the four mule
 accounts and their SSN, email and phone — sixteen nodes. Run
 `../../scripts/prove-schemaless.sh --keep` in a terminal and run it again: a
 seventeenth node joins the same picture, a `:regulator` with no table and no

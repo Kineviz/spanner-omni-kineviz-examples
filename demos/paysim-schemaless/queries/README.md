@@ -51,10 +51,16 @@ data contains:
 ../../../gxr omni query kineviz-paysim-demo 05-prove-schemaless.sql
 ```
 
-[`canvas/05-prove-schemaless.gql`](canvas/05-prove-schemaless.gql) is the same
-argument as a picture, and it works either side of the insert: sixteen nodes
-as-is, seventeen once `prove-schemaless.sh --keep` adds the type, with the new
-label sitting beside `:ssn` and `:email` and nothing to tell them apart.
+In Kineviz the shortest version is the built-in `:schema` command: it draws one
+node per label and one edge per relationship type, and on this database every
+one of those labels came from reading rows, because the catalog holds only
+`GraphNode` and `GraphEdge`.
+
+[`canvas/05-prove-schemaless.gql`](canvas/05-prove-schemaless.gql) is the live
+companion to that, and it works either side of the insert: sixteen nodes as-is,
+seventeen once `prove-schemaless.sh --keep` adds the type. `:schema` draws a
+copy cached when the project opened, so it needs a reopen to show a new label;
+query 5 queries the database, so it does not.
 
 or paste it into the **Query** tab of the Kineviz query panel — that tab posts
 whatever you type straight to the proxy, so all five files here work there.
