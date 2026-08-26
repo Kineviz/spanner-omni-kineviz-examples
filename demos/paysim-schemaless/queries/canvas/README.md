@@ -9,10 +9,17 @@ rows, so the answer arrives on the Kineviz canvas as a shape rather than a table
 | 2 | Which of those also move money to each other? | [`02-fraud-rings.gql`](02-fraud-rings.gql) |
 | 3 | Which accounts collect from an identity cluster? | [`03-collector-accounts.gql`](03-collector-accounts.gql) |
 | 4 | Where does the value leave the network? | [`04-cash-out.gql`](04-cash-out.gql) |
+| 5 | Is this actually schemaless? | [`05-prove-schemaless.gql`](05-prove-schemaless.gql) |
 
 Paste one into the **Query** tab of the Kineviz query panel and run it. Each is a
 single statement; they accumulate on the canvas, so running 1 then 2 leaves the
 identity clusters in place and draws the money over them.
+
+**Query 5 draws nothing until you make it draw.** There is no `:regulator` in the
+seeded data. Run `../../scripts/prove-schemaless.sh --keep` in a terminal, run
+query 5 again, and a node type that has no table and no schema entry arrives on
+the canvas next to `:ssn` and `:email` — which are no more real than it is.
+`--undo` puts it back.
 
 ## These do not run in the CLI
 

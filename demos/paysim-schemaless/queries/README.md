@@ -51,6 +51,11 @@ data contains:
 ../../../gxr omni query kineviz-paysim-demo 05-prove-schemaless.sql
 ```
 
+[`canvas/05-prove-schemaless.gql`](canvas/05-prove-schemaless.gql) is the same
+argument as a picture: empty until `prove-schemaless.sh --keep` adds the type,
+then five nodes, with the new label sitting beside `:ssn` and `:email` and
+nothing to tell them apart.
+
 or paste it into the **Query** tab of the Kineviz query panel — that tab posts
 whatever you type straight to the proxy, so all five files here work there.
 Strip the `--` comments first if you paste the whole file.

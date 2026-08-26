@@ -1,0 +1,31 @@
+-- The schemaless proof, drawn.
+--
+-- ../05-prove-schemaless.sql makes the argument as two rows: the catalog knows
+-- one label, the data carries seven. This makes it as a picture, and it starts
+-- empty on purpose.
+--
+-- Run it now and the canvas stays blank — there is no :regulator in the seeded
+-- data. Then, in a terminal:
+--
+--     ./scripts/prove-schemaless.sh --keep
+--
+-- which inserts a node type and an edge type with no DDL, no schema update and
+-- no restart. Run this again and five nodes arrive: the new :regulator, the
+-- account that filed with it, and that account's SSN, email and phone.
+--
+-- Those last three are the point. :ssn, :email and :phonenumber are not more
+-- real than :regulator — every one of them exists because a row says so, and
+-- none of them appears in the schema. On the canvas they are indistinguishable,
+-- which is the whole claim in one picture.
+--
+-- Then put it back:
+--
+--     ./scripts/prove-schemaless.sh --undo
+--
+-- Best run straight after canvas/01, which leaves the identity clusters on the
+-- canvas for this to land beside.
+--
+-- Kineviz only. See README.md in this folder.
+GRAPH PaysimGraph
+MATCH (i)<-[hi:has_ssn|has_email|has_phone]-(c:client)-[rep:reported_to]->(g:regulator)
+RETURN i, hi, c, rep, g

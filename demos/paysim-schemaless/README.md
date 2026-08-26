@@ -202,7 +202,7 @@ rows. The **table** column is the same question written to run in a terminal.
 | 2 | Which of those also move money to each other? | [canvas](queries/canvas/02-fraud-rings.gql) | [table](queries/02-fraud-rings.gql) |
 | 3 | Which accounts collect from an identity cluster? | [canvas](queries/canvas/03-collector-accounts.gql) | [table](queries/03-collector-accounts.gql) |
 | 4 | Where does the value leave the network? | [canvas](queries/canvas/04-cash-out.gql) | [table](queries/04-cash-out.gql) |
-| 5 | Is this actually schemaless? | — | [`05-prove-schemaless.sql`](queries/05-prove-schemaless.sql) |
+| 5 | Is this actually schemaless? | [canvas](queries/canvas/05-prove-schemaless.gql) | [table](queries/05-prove-schemaless.sql) |
 
 **Run `01` then `02`.** The first draws the identity clusters; the second keeps only the ones
 that also move money, and the Oliveira family drops out. That contrast is the argument for
