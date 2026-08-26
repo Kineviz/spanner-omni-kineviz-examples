@@ -34,16 +34,19 @@ cat <<EOF
      · database proxy — live GQL from the canvas, one small driver change
      · CSV export     — works today with no patching, static snapshot
 
-   Then try:
-     1. What goes dark if one gateway fails    queries/01-blast-radius.gql
+   Then try, on the Kineviz canvas — these draw nodes and edges:
+     1. What goes dark if one gateway fails    queries/canvas/01-blast-radius.gql
      2. Sites with one technician and high-criticality kit
-                                               queries/02-lone-cover.gql
+                                               queries/canvas/02-lone-cover.gql
      3. Which sites run firmware under advisory
-                                               queries/03-advisory-exposure.gql
-     4. The transitive tail query 1 misses     queries/04-cascade.gql
+                                               queries/canvas/03-advisory-exposure.gql
+     4. The transitive tail query 1 misses     queries/canvas/04-cascade.gql
 
-     Run 3 in Kineviz rather than the CLI — whether the exposure is concentrated
-     or smeared across the fleet is a shape, and they are different problems.
+     Run 1 first. It draws all 900 devices on purpose: one gateway is visibly
+     fatter than the rest, and that is the finding.
+
+     The same four as tables, for a terminal, are in queries/ — Spanner will not
+     hand a graph element back to a client, so the canvas set is Kineviz-only.
 
    Cost so far: ~\$0.00 — nothing billable exists. This ran on your hardware.
    Tear down with:  ./gxr down edge-fleet   (drops the database, keeps the deployment)

@@ -32,13 +32,17 @@ cat <<EOF
      · database proxy — live GQL from the canvas, one small driver change
      · CSV export     — works today with no patching, static snapshot
 
-   Then try:
-     1. Accounts sharing a device            queries/01-shared-devices.gql
-     2. Money moving in a closed cycle       queries/02-money-cycles.gql
-     3. Fan-in to a collector account        queries/03-collector-accounts.gql
-     4. Where value leaves the network       queries/04-cash-out.gql
+   Then try, on the Kineviz canvas — these draw nodes and edges:
+     1. Accounts sharing a device            queries/canvas/01-shared-devices.gql
+     2. Money moving in a closed cycle       queries/canvas/02-money-cycles.gql
+     3. Fan-in to a collector account        queries/canvas/03-collector-accounts.gql
+     4. Where value leaves the network       queries/canvas/04-cash-out.gql
 
-     Run 2 in Kineviz rather than the CLI — a cycle is a shape.
+     Run 1 then 2. A cycle is a shape, and 2 is where the innocent family drops
+     out of the picture.
+
+     The same four as tables, for a terminal, are in queries/ — Spanner will not
+     hand a graph element back to a client, so the canvas set is Kineviz-only.
 
    Cost so far: ~\$0.00 — nothing billable exists. This ran on your hardware.
    Tear down with:  ./gxr down fraud-rings   (drops the database, keeps the deployment)

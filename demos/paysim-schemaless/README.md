@@ -192,13 +192,21 @@ routes that work, what they cost you, and how to run the proxy by hand are all i
 
 ## Explore
 
-| | Question | File |
-|---|---|---|
-| 1 | Which accounts share an SSN, email or phone? | [`queries/01-shared-identifiers.gql`](queries/01-shared-identifiers.gql) |
-| 2 | Which of those also move money to each other? | [`queries/02-fraud-rings.gql`](queries/02-fraud-rings.gql) |
-| 3 | Which accounts collect from an identity cluster? | [`queries/03-collector-accounts.gql`](queries/03-collector-accounts.gql) |
-| 4 | Where does the value leave the network? | [`queries/04-cash-out.gql`](queries/04-cash-out.gql) |
-| 5 | Is this actually schemaless? | [`queries/05-prove-schemaless.sql`](queries/05-prove-schemaless.sql) |
+Four questions, and every one of them has a shape as its answer. Run them on the Kineviz
+canvas from [`queries/canvas/`](queries/canvas/), which returns nodes and edges rather than
+rows. The **table** column is the same question written to run in a terminal.
+
+| | Question | On the canvas | As a table |
+|---|---|---|---|
+| 1 | Which accounts share an SSN, email or phone? | [canvas](queries/canvas/01-shared-identifiers.gql) | [table](queries/01-shared-identifiers.gql) |
+| 2 | Which of those also move money to each other? | [canvas](queries/canvas/02-fraud-rings.gql) | [table](queries/02-fraud-rings.gql) |
+| 3 | Which accounts collect from an identity cluster? | [canvas](queries/canvas/03-collector-accounts.gql) | [table](queries/03-collector-accounts.gql) |
+| 4 | Where does the value leave the network? | [canvas](queries/canvas/04-cash-out.gql) | [table](queries/04-cash-out.gql) |
+| 5 | Is this actually schemaless? | — | [`05-prove-schemaless.sql`](queries/05-prove-schemaless.sql) |
+
+**Run `01` then `02`.** The first draws the identity clusters; the second keeps only the ones
+that also move money, and the Oliveira family drops out. That contrast is the argument for
+the graph, and it is a picture rather than a number.
 
 Question 5 has a live version — [`scripts/prove-schemaless.sh`](scripts/prove-schemaless.sh)
 adds a node type and an edge type with no DDL, asserts that the catalog did **not** change

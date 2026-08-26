@@ -39,15 +39,18 @@ cat <<EOF
      ./gxr omni sql ${OMNI_DATABASE}
      ../../connect/verify.sh --database ${OMNI_DATABASE} --graph ${OMNI_GRAPH}
 
-   Then try:
-     1. Accounts sharing an identity          queries/01-shared-identifiers.gql
-     2. Which of those also move money        queries/02-fraud-rings.gql
-     3. Fan-in to a collector account         queries/03-collector-accounts.gql
-     4. Where value leaves the network        queries/04-cash-out.gql
+   Then try, on the Kineviz canvas — these draw nodes and edges:
+     1. Accounts sharing an identity          queries/canvas/01-shared-identifiers.gql
+     2. Which of those also move money        queries/canvas/02-fraud-rings.gql
+     3. Fan-in to a collector account         queries/canvas/03-collector-accounts.gql
+     4. Where value leaves the network        queries/canvas/04-cash-out.gql
 
-     Run 2 in Kineviz rather than the CLI — a ring is a shape. One of the
-     shared identifiers in query 1 is an innocent family; query 2 is what
-     tells them apart.
+     Run 1 then 2. One of the identity clusters in 1 is an innocent family, and
+     2 is what drops it out of the picture.
+
+     The same four as tables, plus the schemaless proof, are in queries/ —
+     Spanner will not hand a graph element back to a client, so the canvas set
+     is Kineviz-only.
 
    What makes this the schemaless demo: there are two tables. Labels and
    properties are columns, not schema. Adding a node type is an INSERT — and

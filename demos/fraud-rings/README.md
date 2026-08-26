@@ -185,28 +185,43 @@ Values for this demo:
 
 ## Explore
 
-Four questions, in [`queries/`](queries/). **Run `01` then `02`** — that pair is the whole
-argument for using a graph here.
+Four questions, and every one of them has a shape as its answer. Run them on the Kineviz
+canvas from [`queries/canvas/`](queries/canvas/), which returns nodes and edges rather than
+rows. **Run `01` then `02`** — that pair is the whole argument for using a graph here.
 
-**1. Which accounts share a device?** — [`01-shared-devices.gql`](queries/01-shared-devices.gql)
+**1. Which accounts share a device?** —
+[canvas](queries/canvas/01-shared-devices.gql) · [table](queries/01-shared-devices.gql)
 
-Three devices come back. One of them is innocent.
+Three devices come back, each a star with two or more accounts around it. One of them is
+innocent.
 
 **2. Which of those also move money between themselves?** —
-[`02-money-cycles.gql`](queries/02-money-cycles.gql)
+[canvas](queries/canvas/02-money-cycles.gql) · [table](queries/02-money-cycles.gql)
 
 Two devices survive. The family drops out — that's the false positive a shared-device list
-would have handed an investigator. **Run this one in Kineviz**: a cycle is a shape.
+would have handed an investigator. A cycle is a shape, and the canvas is where you see it.
 
 **3. Which account is the fan-in point?** —
-[`03-collector-accounts.gql`](queries/03-collector-accounts.gql)
+[canvas](queries/canvas/03-collector-accounts.gql) · [table](queries/03-collector-accounts.gql)
 
-The mule. Where 02 finds the ring, this finds the account worth freezing first.
+The mule. Where 02 finds the ring, this finds the account worth freezing first. The canvas
+draws the triangle; the table ranks collectors by how much they took.
 
-**4. Where does the value leave?** — [`04-cash-out.gql`](queries/04-cash-out.gql)
+**4. Where does the value leave?** —
+[canvas](queries/canvas/04-cash-out.gql) · [table](queries/04-cash-out.gql)
 
 Large merchant payments. Note the account here is the same one query 03 named — the
 collector cashes out.
+
+The **table** versions run anywhere, which is what you want before Kineviz is connected or
+any time you are in a terminal:
+
+```bash
+./gxr omni query kineviz-fraud-demo demos/fraud-rings/queries/01-shared-devices.gql
+```
+
+The canvas set is Kineviz-only — Spanner will not hand a graph element back to a client, and
+[`queries/README.md`](queries/README.md) explains the rest.
 
 ### What you should find
 

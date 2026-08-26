@@ -176,33 +176,49 @@ Values for this demo:
 
 ## Explore
 
-Four questions, in [`queries/`](queries/). **Run `01` then `04`** — that pair is the argument
-for using a graph rather than a spreadsheet of device counts.
+Four questions, and every one of them has a shape as its answer. Run them on the Kineviz
+canvas from [`queries/canvas/`](queries/canvas/), which returns nodes and edges rather than
+rows. **Run `01` then `04`** — that pair is the argument for using a graph rather than a
+spreadsheet of device counts.
 
-**1. What goes dark if one gateway fails?** — [`01-blast-radius.gql`](queries/01-blast-radius.gql)
+**1. What goes dark if one gateway fails?** —
+[canvas](queries/canvas/01-blast-radius.gql) · [table](queries/01-blast-radius.gql)
 
-One gateway carries roughly triple what the next one does. In a real fleet, that row is the
+One gateway carries roughly triple what the next one does. The canvas draws all 900 devices
+on purpose: concentration only reads against the rest of the fleet, and the fat hub is the
 one you buy a spare for.
 
 **2. Which sites have one technician and equipment that matters?** —
-[`02-lone-cover.gql`](queries/02-lone-cover.gql)
+[canvas](queries/canvas/02-lone-cover.gql) · [table](queries/02-lone-cover.gql)
 
 The staffing roster knows the first number; the asset register knows the second. Neither knows
-the pair, and the pair is the finding.
+the pair, and the pair is the finding. On the canvas it is a site with one technician edge and
+a thick fan of devices behind it.
 
 **3. Which sites still run firmware under advisory?** —
-[`03-advisory-exposure.gql`](queries/03-advisory-exposure.gql)
+[canvas](queries/canvas/03-advisory-exposure.gql) · [table](queries/03-advisory-exposure.gql)
 
-A scanner gives you serial numbers. This gives you places to send someone. **Run it in
-Kineviz**: whether the exposure is concentrated or smeared across the fleet is a shape, and
-they are different problems.
+A scanner gives you serial numbers. This gives you places to send someone. Whether the
+exposure is concentrated or smeared across the fleet is a shape, and they are different
+problems.
 
-**4. The blast radius query 1 missed** — [`04-cascade.gql`](queries/04-cascade.gql)
+**4. The blast radius query 1 missed** —
+[canvas](queries/canvas/04-cascade.gql) · [table](queries/04-cascade.gql)
 
 Devices depend on each other, so losing one takes down whatever depends on it, and whatever
 depends on that. `-[:DEPENDS_ON]->{1,4}` is a variable-length quantifier — and it is bounded on
 purpose, because control dependencies acquire cycles the moment someone wires a mutual
 interlock.
+
+The **table** versions run anywhere, which is what you want before Kineviz is connected or any
+time you are in a terminal:
+
+```bash
+./gxr omni query kineviz-fleet-demo demos/edge-fleet/queries/01-blast-radius.gql
+```
+
+The canvas set is Kineviz-only — Spanner will not hand a graph element back to a client, and
+[`queries/README.md`](queries/README.md) explains the rest.
 
 ### What you should find
 
