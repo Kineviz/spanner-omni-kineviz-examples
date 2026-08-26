@@ -28,13 +28,7 @@ again. No DDL anywhere in it.
 
 ![Adding a node type to a live schemaless graph with no DDL](media/schemaless-proof.gif)
 
-A GIF rather than the video, for a reason worth knowing if you try to embed one
-yourself: GitHub's README policy allows `img-src *.githubusercontent.com` but its `media-src`
-lists only assets uploaded through the GitHub UI, and `raw.githubusercontent.com` serves
-committed files as `application/octet-stream` with `nosniff`. So a `.mp4` in a repo cannot
-play inline, whatever tag you wrap it in. The same 47 seconds at native 1920x940 is
-[`media/schemaless-proof.mp4`](media/schemaless-proof.mp4) — a third of the size, and what to
-use anywhere that does play video.
+The same 47 seconds at native 1920x940: [`media/schemaless-proof.mp4`](media/schemaless-proof.mp4).
 
 Spanner Omni is **pre-GA**. Nothing here is billable and nothing leaves the host.
 
