@@ -4,33 +4,18 @@
 -- one label, the data carries seven. This makes it as a picture.
 --
 -- As-is it draws the four mule accounts with their SSN, email and phone:
--- sixteen nodes, every label there only because a row says so. To add one more,
--- paste these into this same Query tab — no DDL, no schema update, no restart:
+-- sixteen nodes, every label there only because a row says so. README.md in
+-- this folder has the two INSERTs that add a node type and an edge type, to
+-- paste into this same Query tab — no DDL, no schema update, no restart.
 --
---     INSERT INTO GraphNode (id, label, properties)
---     VALUES ('regulator_R01', 'regulator',
---             JSON'{"name": "Financial Conduct Authority", "jurisdiction": "UK"}')
---
---     INSERT INTO GraphEdge (id, dest_id, edge_id, label, properties)
---     VALUES ('client_C0394', 'regulator_R01', 'sar1', 'reported_to',
---             JSON'{"filed": "2026-02-01", "reason": "structuring"}')
---
--- Each answers rows_affected 1. Run this file again and a seventeenth node
--- joins the same picture: a :regulator, wired to the collector by :reported_to.
--- Nothing on the canvas marks it out as newer than the rest — :ssn, :email and
+-- Run this file again afterwards and a seventeenth node joins the same
+-- picture: a :regulator, wired to the collector by :reported_to. Nothing on
+-- the canvas marks it out as newer than the rest — :ssn, :email and
 -- :phonenumber arrived the same way, and none of the four is in the schema.
--- That indistinguishability is the claim.
---
--- Undo, same panel:
---
---     DELETE FROM GraphEdge WHERE id='client_C0394'
---       AND dest_id='regulator_R01' AND edge_id='sar1'
---
---     DELETE FROM GraphNode WHERE id='regulator_R01'
---
--- ../../scripts/prove-schemaless.sh does the same from a terminal, with an
--- assertion attached and cleanup on every exit path. Use the panel to show it,
--- the script to test it.
+-- That indistinguishability is the claim. README.md has the two DELETEs that
+-- put it back, and ../../scripts/prove-schemaless.sh does the whole thing from
+-- a terminal with an assertion attached: the panel to show it, the script to
+-- test it.
 --
 -- `:schema` draws the whole label space in one command, but from a copy cached
 -- when the project opened, so a label added mid-session appears there only
