@@ -10,6 +10,11 @@ SQL shell, or through this repo's runner.
 | `03-advisory-exposure.gql` | Which *sites* run firmware under a published advisory? |
 | `04-cascade.gql` | What does query 01 miss, once devices depend on each other? |
 
+Each returns a **table**, and each runs in the CLI and in Kineviz.
+[`canvas/`](canvas/) has the same four questions written to return **nodes and
+edges**, so the answer lands on the Kineviz canvas as a shape — those are
+Kineviz-only, because Spanner will not hand a graph element back to a client.
+
 **Start with `01`, then `04`.** `01` counts what is directly attached to a
 gateway; `04` walks the dependency chains that make the real radius bigger. The
 gap between the two numbers is the argument for a graph.

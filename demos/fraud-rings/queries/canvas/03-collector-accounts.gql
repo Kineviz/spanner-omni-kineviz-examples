@@ -1,0 +1,13 @@
+-- The fan-in, drawn: a collector taking payments from accounts it shares a
+-- device with. Same triangle as 02, read from the collector's side — the
+-- account with several payment edges pointing at it is the one worth opening.
+--
+-- The table version at ../03-collector-accounts.gql ranks collectors by how
+-- much they took, which this cannot express: the proxy's rewrite drops
+-- everything after the projection, so totals belong there.
+--
+-- Kineviz only. See README.md in this folder.
+GRAPH FraudGraph
+MATCH (payer:Client)-[u1:USED_DEVICE]->(d:Device)<-[u2:USED_DEVICE]-(collector:Client)<-[p:PAID]-(payer)
+WHERE payer.id <> collector.id
+RETURN payer, u1, d, u2, collector, p

@@ -1,0 +1,12 @@
+-- Accounts that signed in from the same device, as a subgraph.
+--
+-- Same question as ../01-shared-devices.gql, different answer shape: that one
+-- counts, this one draws. The clusters appear as stars — a device in the
+-- middle with two or more accounts hanging off it. One of them is the innocent
+-- family, which is the whole argument for query 02.
+--
+-- Kineviz only. See README.md in this folder.
+GRAPH FraudGraph
+MATCH (a:Client)-[u1:USED_DEVICE]->(d:Device)<-[u2:USED_DEVICE]-(b:Client)
+WHERE a.id < b.id
+RETURN a, u1, d, u2, b

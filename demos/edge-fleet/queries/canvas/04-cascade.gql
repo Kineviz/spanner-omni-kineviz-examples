@@ -1,0 +1,14 @@
+-- Dependency cascades, drawn: devices that depend on another device, up to
+-- four hops out, and the gateway the root sits behind.
+--
+-- The quantified hop {1,4} survives the proxy's rewrite, so the transitive
+-- tail arrives whole. Roots with a long tail behind them are the devices whose
+-- failure takes a chain down with them, and they are not the same devices as
+-- the busy gateways in 01.
+--
+-- ../04-cascade.gql ranks roots by how many devices sit downstream.
+--
+-- Kineviz only. See README.md in this folder.
+GRAPH FleetGraph
+MATCH (upstream:Device)-[dep:DEPENDS_ON]->{1,4}(root:Device)-[c:CONNECTED_TO]->(g:Gateway)
+RETURN upstream, dep, root, c, g

@@ -1,0 +1,14 @@
+-- The fleet, drawn: every device, the gateway it connects through, and the
+-- site that gateway sits in.
+--
+-- The whole fleet on purpose — around 940 nodes — because concentration is the
+-- finding and you can only see it against the rest. One gateway is visibly
+-- fatter than the others: it carries 129 devices where the next carries 37.
+-- That gateway is the blast radius.
+--
+-- ../01-blast-radius.gql is the ranked table of the same thing.
+--
+-- Kineviz only. See README.md in this folder.
+GRAPH FleetGraph
+MATCH (d:Device)-[c:CONNECTED_TO]->(g:Gateway)-[h:HOSTED_AT]->(s:Site)
+RETURN d, c, g, h, s

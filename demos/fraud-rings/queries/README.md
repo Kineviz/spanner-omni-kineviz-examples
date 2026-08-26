@@ -10,6 +10,11 @@ SQL shell, or through this repo's runner.
 | `03-collector-accounts.gql` | Which account is the fan-in point of a ring? |
 | `04-cash-out.gql` | Where does the value leave the network? |
 
+Each returns a **table**, and each runs in the CLI and in Kineviz.
+[`canvas/`](canvas/) has the same four questions written to return **nodes and
+edges**, so the answer lands on the Kineviz canvas as a shape — those are
+Kineviz-only, because Spanner will not hand a graph element back to a client.
+
 **Start with `01`, then `02`.** On its own, a shared device is a weak signal —
 families share tablets. `02` is what turns it into a finding.
 

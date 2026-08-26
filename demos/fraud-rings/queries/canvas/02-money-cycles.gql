@@ -1,0 +1,14 @@
+-- The rings, drawn: accounts that share a device AND move money between
+-- themselves. This is the one to run in front of someone.
+--
+-- Written as a single closed path — device hop out, payment hop back — rather
+-- than two comma-joined patterns. A path variable binds only the first pattern
+-- in a comma-joined list, so the second one still filters the result while its
+-- nodes and edges never reach the canvas: a picture quietly missing half of
+-- itself, with nothing to say so.
+--
+-- Kineviz only. See README.md in this folder.
+GRAPH FraudGraph
+MATCH (a:Client)-[u1:USED_DEVICE]->(d:Device)<-[u2:USED_DEVICE]-(b:Client)<-[p:PAID]-(a)
+WHERE a.id <> b.id
+RETURN a, u1, d, u2, b, p

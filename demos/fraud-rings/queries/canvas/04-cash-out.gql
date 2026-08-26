@@ -1,0 +1,14 @@
+-- Where the ring's value leaves the network, drawn: the device-sharing
+-- accounts and every merchant they pay.
+--
+-- Scoped to accounts that share a device rather than to a payment threshold.
+-- This dataset holds exactly one merchant payment above $1,000 — the planted
+-- collector cashing out $8,400 — so a threshold draws two nodes and tells you
+-- nothing. The table version at ../04-cash-out.gql is the one that ranks by
+-- amount; this one shows the exits.
+--
+-- Kineviz only. See README.md in this folder.
+GRAPH FraudGraph
+MATCH (a:Client)-[u1:USED_DEVICE]->(d:Device)<-[u2:USED_DEVICE]-(b:Client)-[pm:PAID_MERCHANT]->(m:Merchant)
+WHERE a.id <> b.id
+RETURN a, u1, d, u2, b, pm, m

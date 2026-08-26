@@ -1,0 +1,14 @@
+-- Advisory exposure, drawn: the firmware carrying a security advisory, every
+-- device on it, and the gateways and sites those devices reach through.
+--
+-- One firmware version, fifteen devices, spread across most of the estate.
+-- The shape answers the question a patch window actually asks — not how many
+-- devices are affected, but how many sites you have to touch.
+--
+-- ../03-advisory-exposure.gql is the same exposure as a table, grouped by site.
+--
+-- Kineviz only. See README.md in this folder.
+GRAPH FleetGraph
+MATCH (f:Firmware)<-[r:RUNS]-(d:Device)-[c:CONNECTED_TO]->(g:Gateway)-[h:HOSTED_AT]->(s:Site)
+WHERE f.advisory <> ''
+RETURN f, r, d, c, g, h, s

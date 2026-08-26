@@ -1,0 +1,16 @@
+-- Coverage, drawn: which technician covers which site, and the
+-- high-criticality devices sitting behind each one.
+--
+-- Look for a site with exactly one technician edge and a thick fan of devices
+-- behind it. That is a single point of human failure, and the seeded data
+-- plants one.
+--
+-- The "exactly one technician" test is a count, so it lives in the table
+-- version at ../02-lone-cover.gql — the proxy's rewrite drops everything after
+-- the projection. Here you read it off the picture instead.
+--
+-- Kineviz only. See README.md in this folder.
+GRAPH FleetGraph
+MATCH (t:Technician)-[cv:COVERS]->(s:Site)<-[h:HOSTED_AT]-(g:Gateway)<-[c:CONNECTED_TO]-(d:Device)
+WHERE d.criticality = 'high'
+RETURN t, cv, s, h, g, c, d
