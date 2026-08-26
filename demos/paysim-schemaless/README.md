@@ -26,9 +26,15 @@ Here is that claim, run against a live deployment in 47 seconds — `:schema`, a
 adds a node type and an edge type, the new labels appearing in Kineviz, and both deleted
 again. No DDL anywhere in it.
 
-<video src="https://github.com/Kineviz/spanner-omni-kineviz-examples/raw/main/demos/paysim-schemaless/media/schemaless-proof.mp4" controls muted width="100%"></video>
+![Adding a node type to a live schemaless graph with no DDL](media/schemaless-proof.gif)
 
-*(If the player does not load, the file is [`media/schemaless-proof.mp4`](media/schemaless-proof.mp4).)*
+A GIF rather than the video, for a reason worth knowing if you try to embed one
+yourself: GitHub's README policy allows `img-src *.githubusercontent.com` but its `media-src`
+lists only assets uploaded through the GitHub UI, and `raw.githubusercontent.com` serves
+committed files as `application/octet-stream` with `nosniff`. So a `.mp4` in a repo cannot
+play inline, whatever tag you wrap it in. The same 47 seconds at native 1920x940 is
+[`media/schemaless-proof.mp4`](media/schemaless-proof.mp4) — a third of the size, and what to
+use anywhere that does play video.
 
 Spanner Omni is **pre-GA**. Nothing here is billable and nothing leaves the host.
 
