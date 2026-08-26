@@ -10,6 +10,7 @@ rows, so the answer arrives on the Kineviz canvas as a shape rather than a table
 | 3 | Which accounts collect from an identity cluster? | [`03-collector-accounts.gql`](03-collector-accounts.gql) |
 | 4 | Where does the value leave the network? | [`04-cash-out.gql`](04-cash-out.gql) |
 | 5 | Is this actually schemaless? | [`05-prove-schemaless.gql`](05-prove-schemaless.gql) |
+| | the statements it refers to | [`05-add-remove-type.sql`](05-add-remove-type.sql) |
 
 Paste one into the **Query** tab of the Kineviz query panel and run it. Each is a
 single statement; they accumulate on the canvas, so running 1 then 2 leaves the
@@ -32,8 +33,9 @@ thing query 5 below does that `:schema` cannot.
 exactly this, recorded against a live deployment.
 
 
-You do not have to leave Kineviz to make the point. Paste these into the same
-Query tab:
+You do not have to leave Kineviz to make the point. These four are also in
+[`05-add-remove-type.sql`](05-add-remove-type.sql), ready to copy. Paste them
+into the same Query tab, one at a time:
 
 ```sql
 INSERT INTO GraphNode (id, label, properties)

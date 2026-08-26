@@ -4,18 +4,19 @@
 -- one label, the data carries seven. This makes it as a picture.
 --
 -- As-is it draws the four mule accounts with their SSN, email and phone:
--- sixteen nodes, every label there only because a row says so. README.md in
--- this folder has the two INSERTs that add a node type and an edge type, to
--- paste into this same Query tab — no DDL, no schema update, no restart.
+-- sixteen nodes, every label there only because a row says so.
+-- 05-add-remove-type.sql beside this file has the two INSERTs that add a node
+-- type and an edge type, ready to paste into this same Query tab — no DDL, no
+-- schema update, no restart.
 --
 -- Run this file again afterwards and a seventeenth node joins the same
 -- picture: a :regulator, wired to the collector by :reported_to. Nothing on
 -- the canvas marks it out as newer than the rest — :ssn, :email and
 -- :phonenumber arrived the same way, and none of the four is in the schema.
--- That indistinguishability is the claim. README.md has the two DELETEs that
--- put it back, and ../../scripts/prove-schemaless.sh does the whole thing from
--- a terminal with an assertion attached: the panel to show it, the script to
--- test it.
+-- That indistinguishability is the claim. The same file has the two DELETEs
+-- that put it back, and ../../scripts/prove-schemaless.sh does the whole thing
+-- from a terminal with an assertion attached: the panel to show it, the script
+-- to test it.
 --
 -- `:schema` draws the whole label space in one command, but from a copy cached
 -- when the project opened, so a label added mid-session appears there only
