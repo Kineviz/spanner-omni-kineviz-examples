@@ -15,11 +15,17 @@ Paste one into the **Query** tab of the Kineviz query panel and run it. Each is 
 single statement; they accumulate on the canvas, so running 1 then 2 leaves the
 identity clusters in place and draws the money over them.
 
-**Query 5 draws nothing until you make it draw.** There is no `:regulator` in the
-seeded data. Run `../../scripts/prove-schemaless.sh --keep` in a terminal, run
-query 5 again, and a node type that has no table and no schema entry arrives on
-the canvas next to `:ssn` and `:email` — which are no more real than it is.
-`--undo` puts it back.
+**Query 5 works either side of the insert.** As-is it draws the four mule
+accounts and their SSN, email and phone — sixteen nodes. Run
+`../../scripts/prove-schemaless.sh --keep` in a terminal and run it again: a
+seventeenth node joins the same picture, a `:regulator` with no table and no
+schema entry, sitting beside `:ssn` and `:email`, which are no more real than it
+is. `--undo` puts it back.
+
+The `->{0,1}` on its last hop is what makes that work. A zero-or-one quantifier
+makes the step optional, and at zero hops the tail binds to the account itself
+so nothing extra is drawn. The obvious way to write it — an `OPTIONAL` clause —
+does not survive the rewrite, for the same reason subqueries do not.
 
 ## These do not run in the CLI
 

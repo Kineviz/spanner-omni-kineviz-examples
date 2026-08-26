@@ -1,31 +1,34 @@
--- The schemaless proof, drawn.
+-- The schemaless proof, drawn — and it works either side of the insert.
 --
 -- ../05-prove-schemaless.sql makes the argument as two rows: the catalog knows
--- one label, the data carries seven. This makes it as a picture, and it starts
--- empty on purpose.
+-- one label, the data carries seven. This makes it as a picture.
 --
--- Run it now and the canvas stays blank — there is no :regulator in the seeded
--- data. Then, in a terminal:
+-- Run it as-is and you get the four mule accounts with their SSN, email and
+-- phone: sixteen nodes, all of them labels that exist only because a row says
+-- so. Then, in a terminal:
 --
 --     ./scripts/prove-schemaless.sh --keep
 --
--- which inserts a node type and an edge type with no DDL, no schema update and
--- no restart. Run this again and five nodes arrive: the new :regulator, the
--- account that filed with it, and that account's SSN, email and phone.
+-- which adds a node type and an edge type with no DDL, no schema update and no
+-- restart. Run this again and a seventeenth node joins the same picture — a
+-- :regulator, wired to the collector by :reported_to.
 --
--- Those last three are the point. :ssn, :email and :phonenumber are not more
--- real than :regulator — every one of them exists because a row says so, and
--- none of them appears in the schema. On the canvas they are indistinguishable,
--- which is the whole claim in one picture.
+-- Nothing on the canvas marks it out as newer than the rest. :ssn, :email and
+-- :phonenumber arrived the same way it did, and none of the four is in the
+-- schema. That indistinguishability is the claim.
 --
--- Then put it back:
+-- Put it back with:
 --
 --     ./scripts/prove-schemaless.sh --undo
 --
--- Best run straight after canvas/01, which leaves the identity clusters on the
--- canvas for this to land beside.
+-- The `->{0,1}` on the last hop is what lets one file serve both states: a
+-- quantifier of zero-or-one makes that step optional, and at zero hops the tail
+-- binds to the account itself, so nothing extra is drawn. An OPTIONAL clause
+-- would be the obvious way to write this and does not survive the proxy's
+-- rewrite — see README.md in this folder.
 --
--- Kineviz only. See README.md in this folder.
+-- Kineviz only.
 GRAPH PaysimGraph
-MATCH (i)<-[hi:has_ssn|has_email|has_phone]-(c:client)-[rep:reported_to]->(g:regulator)
+MATCH (i)<-[hi:has_ssn|has_email|has_phone]-(c:client)-[rep:reported_to]->{0,1}(g)
+WHERE STRING(c.client_type) = 'MULE'
 RETURN i, hi, c, rep, g
