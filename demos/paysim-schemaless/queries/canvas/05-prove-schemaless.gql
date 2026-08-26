@@ -3,35 +3,43 @@
 -- ../05-prove-schemaless.sql makes the argument as two rows: the catalog knows
 -- one label, the data carries seven. This makes it as a picture.
 --
--- For the label space alone, Kineviz has this built in: type `:schema` into the
--- Query tab and it draws one node per label and one edge per relationship type,
--- every one of them discovered by reading rows. Use that first. It draws a copy
--- cached when the project opened, though, so a label added mid-session shows up
--- only after a reopen — this file queries the database and does not need one.
+-- As-is it draws the four mule accounts with their SSN, email and phone:
+-- sixteen nodes, every label there only because a row says so. To add one more,
+-- paste these into this same Query tab — no DDL, no schema update, no restart:
 --
--- Run it as-is and you get the four mule accounts with their SSN, email and
--- phone: sixteen nodes, all of them labels that exist only because a row says
--- so. Then, in a terminal:
+--     INSERT INTO GraphNode (id, label, properties)
+--     VALUES ('regulator_R01', 'regulator',
+--             JSON'{"name": "Financial Conduct Authority", "jurisdiction": "UK"}')
 --
---     ./scripts/prove-schemaless.sh --keep
+--     INSERT INTO GraphEdge (id, dest_id, edge_id, label, properties)
+--     VALUES ('client_C0394', 'regulator_R01', 'sar1', 'reported_to',
+--             JSON'{"filed": "2026-02-01", "reason": "structuring"}')
 --
--- which adds a node type and an edge type with no DDL, no schema update and no
--- restart. Run this again and a seventeenth node joins the same picture — a
--- :regulator, wired to the collector by :reported_to.
+-- Each answers rows_affected 1. Run this file again and a seventeenth node
+-- joins the same picture: a :regulator, wired to the collector by :reported_to.
+-- Nothing on the canvas marks it out as newer than the rest — :ssn, :email and
+-- :phonenumber arrived the same way, and none of the four is in the schema.
+-- That indistinguishability is the claim.
 --
--- Nothing on the canvas marks it out as newer than the rest. :ssn, :email and
--- :phonenumber arrived the same way it did, and none of the four is in the
--- schema. That indistinguishability is the claim.
+-- Undo, same panel:
 --
--- Put it back with:
+--     DELETE FROM GraphEdge WHERE id='client_C0394'
+--       AND dest_id='regulator_R01' AND edge_id='sar1'
 --
---     ./scripts/prove-schemaless.sh --undo
+--     DELETE FROM GraphNode WHERE id='regulator_R01'
 --
--- The `->{0,1}` on the last hop is what lets one file serve both states: a
--- quantifier of zero-or-one makes that step optional, and at zero hops the tail
--- binds to the account itself, so nothing extra is drawn. An OPTIONAL clause
--- would be the obvious way to write this and does not survive the proxy's
--- rewrite — see README.md in this folder.
+-- ../../scripts/prove-schemaless.sh does the same from a terminal, with an
+-- assertion attached and cleanup on every exit path. Use the panel to show it,
+-- the script to test it.
+--
+-- `:schema` draws the whole label space in one command, but from a copy cached
+-- when the project opened, so a label added mid-session appears there only
+-- after a reopen. This file queries the database, so it does not need one.
+--
+-- The `->{0,1}` is what lets one file serve both states: zero-or-one makes the
+-- hop optional, and at zero hops the tail binds to the account itself, so
+-- nothing extra is drawn. An OPTIONAL clause is the obvious way to write that
+-- and does not survive the proxy's rewrite — see README.md in this folder.
 --
 -- Kineviz only.
 GRAPH PaysimGraph
