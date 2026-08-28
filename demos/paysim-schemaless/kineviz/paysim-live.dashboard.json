@@ -1,0 +1,107 @@
+{
+  "version": "2.1",
+  "id": "paysim-live",
+  "title": "PaySim · live",
+  "icon": "user-defined-search-web graphxr-search-web",
+  "layout": { "columns": 12, "rowHeight": 74, "gap": 9 },
+  "sources": [
+    {
+      "id": "landed",
+      "kind": "db",
+      "query": "GRAPH PaysimGraph MATCH (t:transaction) RETURN COUNT(*) AS landed",
+      "refresh": { "mode": "interval", "everyMs": 2000 }
+    },
+    {
+      "id": "totals",
+      "kind": "db",
+      "query": "GRAPH PaysimGraph MATCH (t:transaction) RETURN SUM(FLOAT64(t.amount)) AS volume, COUNTIF(BOOL(t.isfraud)) AS fraud_txns, SUM(IF(BOOL(t.isfraud), FLOAT64(t.amount), 0)) AS fraud_volume",
+      "refresh": { "mode": "interval", "everyMs": 2000 }
+    },
+    {
+      "id": "byAction",
+      "kind": "db",
+      "query": "GRAPH PaysimGraph MATCH (t:transaction) RETURN STRING(t.action) AS action, COUNT(*) AS txns",
+      "refresh": { "mode": "interval", "everyMs": 2000 }
+    },
+    {
+      "id": "fraudFeed",
+      "kind": "db",
+      "query": "GRAPH PaysimGraph MATCH (c:client)-[:performs]->(t:transaction) WHERE BOOL(t.isfraud) RETURN STRING(c.name) AS sender, STRING(t.action) AS action, FLOAT64(t.amount) AS amount, STRING(t.timestamp) AS ts ORDER BY ts DESC LIMIT 12",
+      "refresh": { "mode": "interval", "everyMs": 2000 }
+    },
+    { "id": "sel", "kind": "canvasSelection", "refresh": { "mode": "onSelect" } }
+  ],
+  "widgets": [
+    {
+      "id": "kpiLanded",
+      "type": "kpi",
+      "title": "Transactions landed",
+      "sourceId": "landed",
+      "enc": { "value": "landed", "agg": "max" },
+      "w": 3,
+      "h": 2
+    },
+    {
+      "id": "kpiVolume",
+      "type": "kpi",
+      "title": "Volume moved",
+      "sourceId": "totals",
+      "enc": { "value": "volume", "agg": "max" },
+      "w": 3,
+      "h": 2
+    },
+    {
+      "id": "kpiFraud",
+      "type": "kpi",
+      "title": "Fraudulent transactions",
+      "sourceId": "totals",
+      "enc": { "value": "fraud_txns", "agg": "max" },
+      "warn": 10,
+      "crit": 25,
+      "w": 3,
+      "h": 2
+    },
+    {
+      "id": "kpiSelected",
+      "type": "kpi",
+      "title": "Selected on canvas",
+      "sourceId": "sel",
+      "enc": { "agg": "count" },
+      "w": 3,
+      "h": 2
+    },
+    {
+      "id": "barsByAction",
+      "type": "bars",
+      "title": "By action",
+      "sourceId": "byAction",
+      "chart": {
+        "spec": {
+          "chartType": "Bar Chart",
+          "encodings": { "x": { "field": "action" }, "y": { "field": "txns" } }
+        },
+        "semanticTypes": { "action": "Nominal", "txns": "Quantity" }
+      },
+      "sort": "valueDesc",
+      "w": 6,
+      "h": 4
+    },
+    {
+      "id": "tableFraud",
+      "type": "table",
+      "title": "Fraud, newest first",
+      "sourceId": "fraudFeed",
+      "enc": { "label": "sender", "value": "amount" },
+      "w": 6,
+      "h": 4
+    },
+    {
+      "id": "notes",
+      "type": "markdown",
+      "title": "What you are watching",
+      "text": "Every number here is one GQL query against Spanner Omni, re-run every 2 seconds.\n\nThere is no second store and no cache: `./gxr stream up` replays 12,033 transactions through Kafka, and the sink writes a `:transaction` node and two edges per event. The KPIs climb because the graph is growing underneath them — the whole replay takes about two minutes.\n\nThe actors never move — clients, merchants, banks and identifiers were loaded once by `./gxr up`. What streams is the 88% of the graph that is transactions.",
+      "w": 12,
+      "h": 2
+    }
+  ]
+}
