@@ -167,9 +167,13 @@ proxy_start() {
   # 127.0.0.1, never 0.0.0.0. This fronts a deployment with no TLS and no
   # authentication; anyone who can reach it owns every database on it.
   info "starting the proxy on $(proxy_base_url)"
-  ( cd "$PROXY_DIR" && PYTHONPATH=. nohup "$PROXY_VENV/bin/python" -m uvicorn \
+  # `exec`, and the `&` outside the parentheses, so the pid we record is the
+  # PROXY's. Without exec, bash forks a subshell to run the `cd && ...` compound,
+  # `$!` names that subshell, and the python it launches gets the next pid — so
+  # `connect down` killed a wrapper and left the real proxy holding port 9080.
+  ( cd "$PROXY_DIR" && PYTHONPATH=. exec nohup "$PROXY_VENV/bin/python" -m uvicorn \
       src.graphxr_database_proxy.main:app --host 127.0.0.1 --port "${PROXY_PORT:-9080}" \
-      >"$PROXY_LOG" 2>&1 & echo $! >"$PROXY_PID" )
+      >"$PROXY_LOG" 2>&1 ) & echo $! >"$PROXY_PID"
 
   local _attempt
   for _attempt in $(seq 1 40); do
@@ -212,8 +216,31 @@ proxy_stop() {
     rm -f "$PROXY_PID"
     return 0
   fi
-  kill "$(cat "$PROXY_PID")" 2>/dev/null || true
+  local pid; pid=$(cat "$PROXY_PID")
+  kill "$pid" 2>/dev/null || true
   rm -f "$PROXY_PID"
+
+  # Verify rather than assume. Two things have gone wrong here in practice: a
+  # pidfile written by an older version names a wrapper rather than the proxy,
+  # and a proxy stuck in an uninterruptible call ignores SIGTERM outright. Either
+  # way the port stays held and the next `connect up` refuses to start, with the
+  # cause several steps back. So confirm the port is free, then escalate.
+  local waited=0
+  while [ "$waited" -lt 10 ] && port_in_use "${PROXY_PORT:-9080}"; do
+    sleep 1; waited=$((waited + 1))
+  done
+  if port_in_use "${PROXY_PORT:-9080}"; then
+    local orphan; orphan=$(proxy_orphan_pid)
+    if [ -n "$orphan" ]; then
+      kill -9 "$orphan" 2>/dev/null || true
+      sleep 1
+      ok "proxy stopped — it ignored SIGTERM, so pid $orphan was killed outright"
+      return 0
+    fi
+    warn "port ${PROXY_PORT:-9080} is still held by something this repo did not start"
+    dim "find it with: lsof -nP -iTCP:${PROXY_PORT:-9080} -sTCP:LISTEN"
+    return 0
+  fi
   ok "proxy stopped (the Spanner Omni deployment was not touched)"
 }
 

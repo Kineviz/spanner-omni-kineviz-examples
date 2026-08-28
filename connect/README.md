@@ -11,6 +11,30 @@ Want a worked example instead, built for you from synthetic data? See [`../demos
 
 ---
 
+## The proxy holds one Spanner connection, not one per request
+
+`graphxr-database-proxy` builds a fresh driver for every HTTP call, and a Spanner
+`Database` is not a cheap handle: it opens a gRPC channel and starts a background
+thread to keep its multiplexed session alive. One per request is one thread per
+request — measured at ~1.35 leaked threads per query against this deployment. A
+proxy left serving a 2-second dashboard reached **9,217 threads**, stopped
+answering, and pushed the host into swap; before that it exhausted its file
+descriptors and died with `[Errno 24] Too many open files`.
+
+Tearing the handle down per request does not work. `DatabaseSessionsManager.close()`
+ends with `self._multiplexed_session.delete()`, an RPC the preview build of Spanner
+Omni never answers, so the call blocks forever and wedges the request. Setting the
+terminate event by hand does not help either: the maintenance loop is a plain
+`sleep(600)` rather than a wait on the event, so the thread ignores it for up to
+ten minutes and they pile up regardless.
+
+So `connect/proxy/spanner_omni_driver.py` caches one client per
+(endpoint, database) and `disconnect()` releases only this request's references.
+The Spanner client is documented as thread-safe, and this is what every other
+database driver does with a connection. Measured after: threads flat at 27 across
+60 queries and six schema fetches, descriptors flat too.
+
+
 ## Read this first
 
 **Kineviz has no native Spanner Omni connector yet.** Its Spanner connector authenticates
