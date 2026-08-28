@@ -300,11 +300,11 @@
     {
       "id": "muleTake",
       "type": "bars",
-      "title": "Taken by mules",
+      "title": "Taken by mules ($)",
       "sourceId": "mules",
       "chart": {
         "spec": {
-          "chartType": "Pyramid Chart",
+          "chartType": "Bar Chart",
           "encodings": {
             "x": {
               "field": "mule"
