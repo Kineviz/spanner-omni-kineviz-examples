@@ -3,33 +3,109 @@
   "id": "paysim-live",
   "title": "PaySim · live",
   "icon": "user-defined-search-web graphxr-search-web",
-  "layout": { "columns": 12, "rowHeight": 74, "gap": 9 },
+  "layout": {
+    "columns": 12,
+    "rowHeight": 74,
+    "gap": 9
+  },
   "sources": [
     {
       "id": "landed",
       "kind": "db",
       "query": "GRAPH PaysimGraph MATCH (t:transaction) RETURN COUNT(*) AS landed",
-      "refresh": { "mode": "interval", "everyMs": 2000 }
+      "refresh": {
+        "mode": "interval",
+        "everyMs": 2000
+      }
     },
     {
       "id": "totals",
       "kind": "db",
-      "query": "GRAPH PaysimGraph MATCH (t:transaction) RETURN SUM(FLOAT64(t.amount)) AS volume, COUNTIF(BOOL(t.isfraud)) AS fraud_txns, SUM(IF(BOOL(t.isfraud), FLOAT64(t.amount), 0)) AS fraud_volume",
-      "refresh": { "mode": "interval", "everyMs": 2000 }
+      "query": "GRAPH PaysimGraph MATCH (t:transaction) RETURN ROUND(SUM(FLOAT64(t.amount))/1000000,2) AS volume_m",
+      "refresh": {
+        "mode": "interval",
+        "everyMs": 2000
+      }
     },
     {
-      "id": "byAction",
+      "id": "risk",
       "kind": "db",
-      "query": "GRAPH PaysimGraph MATCH (t:transaction) RETURN STRING(t.action) AS action, COUNT(*) AS txns",
-      "refresh": { "mode": "interval", "everyMs": 2000 }
+      "query": "GRAPH PaysimGraph MATCH (t:transaction) RETURN ROUND(SUM(IF(BOOL(t.isfraud),FLOAT64(t.amount),0)),0) AS at_risk, ROUND(100*SUM(IF(BOOL(t.isfraud),FLOAT64(t.amount),0))/GREATEST(SUM(FLOAT64(t.amount)),1),2) AS pct_value, ROUND(MAX(IF(BOOL(t.isfraud),FLOAT64(t.amount),0)),0) AS biggest",
+      "refresh": {
+        "mode": "interval",
+        "everyMs": 2000
+      }
     },
     {
-      "id": "fraudFeed",
+      "id": "daily",
       "kind": "db",
-      "query": "GRAPH PaysimGraph MATCH (c:client)-[:performs]->(t:transaction) WHERE BOOL(t.isfraud) RETURN STRING(c.name) AS sender, STRING(t.action) AS action, FLOAT64(t.amount) AS amount, STRING(t.timestamp) AS ts ORDER BY ts DESC LIMIT 12",
-      "refresh": { "mode": "interval", "everyMs": 2000 }
+      "query": "GRAPH PaysimGraph MATCH (t:transaction) RETURN SUBSTR(STRING(t.timestamp),1,10) AS day, IF(BOOL(t.isfraud),'fraud','legitimate') AS kind, ROUND(SUM(FLOAT64(t.amount)),2) AS volume ORDER BY day",
+      "refresh": {
+        "mode": "interval",
+        "everyMs": 2000
+      }
     },
-    { "id": "sel", "kind": "canvasSelection", "refresh": { "mode": "onSelect" } }
+    {
+      "id": "bands",
+      "kind": "db",
+      "query": "GRAPH PaysimGraph MATCH (t:transaction) RETURN CAST(FLOOR(LOG10(GREATEST(FLOAT64(t.amount),1))) AS INT64) AS decade, CASE CAST(FLOOR(LOG10(GREATEST(FLOAT64(t.amount),1))) AS INT64) WHEN 0 THEN 'under $10' WHEN 1 THEN '$10–99' WHEN 2 THEN '$100–999' WHEN 3 THEN '$1k–10k' WHEN 4 THEN '$10k–100k' ELSE '$100k+' END AS band, ROUND(100*COUNTIF(BOOL(t.isfraud))/COUNT(*),1) AS percent_fraud ORDER BY decade",
+      "refresh": {
+        "mode": "interval",
+        "everyMs": 2000
+      }
+    },
+    {
+      "id": "verdict",
+      "kind": "db",
+      "query": "GRAPH PaysimGraph MATCH (a:client)-[:has_ssn|has_email|has_phone]->(i)<-[:has_ssn|has_email|has_phone]-(b:client) WHERE a.id <> b.id RETURN i.id AS ident, COUNTIF(EXISTS { MATCH (x:client)-[:performs]->(t:transaction)-[:to_client]->(y:client) WHERE x.id = a.id AND y.id = b.id }) AS pairs NEXT RETURN IF(pairs > 0, 'ring confirmed', 'innocent so far') AS verdict, COUNT(*) AS identities",
+      "refresh": {
+        "mode": "interval",
+        "everyMs": 10000
+      }
+    },
+    {
+      "id": "suspects",
+      "kind": "db",
+      "query": "GRAPH PaysimGraph MATCH (c:client)-[:performs]->(t:transaction) WHERE BOOL(t.isfraud) RETURN STRING(c.name) AS suspect, COUNT(*) AS txns, ROUND(SUM(FLOAT64(t.amount)),2) AS moved ORDER BY moved DESC LIMIT 8",
+      "refresh": {
+        "mode": "interval",
+        "everyMs": 10000
+      }
+    },
+    {
+      "id": "ringFanIn",
+      "kind": "db",
+      "query": "GRAPH PaysimGraph MATCH (a:client)-[:has_ssn|has_email|has_phone]->(i)<-[:has_ssn|has_email|has_phone]-(b:client) WHERE a.id <> b.id RETURN a.id AS aid, COUNT(*) AS shares NEXT MATCH (s:client)-[:performs]->(t:transaction)-[:to_client]->(r:client) WHERE s.id = aid RETURN STRING(r.name) AS collector, ROUND(SUM(FLOAT64(t.amount)),2) AS received ORDER BY received DESC LIMIT 8",
+      "refresh": {
+        "mode": "interval",
+        "everyMs": 10000
+      }
+    },
+    {
+      "id": "mules",
+      "kind": "db",
+      "query": "GRAPH PaysimGraph MATCH (v:client)-[:performs]->(t:transaction)-[:to_client]->(m:client) WHERE STRING(m.client_type) = 'MULE' RETURN STRING(m.name) AS mule, ROUND(SUM(FLOAT64(t.amount)),2) AS taken ORDER BY taken DESC LIMIT 10",
+      "refresh": {
+        "mode": "interval",
+        "everyMs": 10000
+      }
+    },
+    {
+      "id": "exitRisk",
+      "kind": "db",
+      "query": "GRAPH PaysimGraph MATCH (t:transaction)-[:to_merchant]->(m:merchant) RETURN IF(BOOL(m.highrisk),'high-risk merchants','normal merchants') AS destination, 'merchant cash-out' AS channel, ROUND(SUM(FLOAT64(t.amount)),2) AS volume",
+      "refresh": {
+        "mode": "interval",
+        "everyMs": 10000
+      }
+    },
+    {
+      "id": "sel",
+      "kind": "canvasSelection",
+      "refresh": {
+        "mode": "onSelect"
+      }
+    }
   ],
   "widgets": [
     {
@@ -37,70 +113,266 @@
       "type": "kpi",
       "title": "Transactions landed",
       "sourceId": "landed",
-      "enc": { "value": "landed", "agg": "max" },
+      "enc": {
+        "value": "landed",
+        "agg": "max"
+      },
       "w": 3,
       "h": 2
     },
     {
       "id": "kpiVolume",
       "type": "kpi",
-      "title": "Volume moved",
+      "title": "Volume moved ($M)",
       "sourceId": "totals",
-      "enc": { "value": "volume", "agg": "max" },
+      "enc": {
+        "value": "volume_m",
+        "agg": "max"
+      },
       "w": 3,
       "h": 2
     },
     {
-      "id": "kpiFraud",
+      "id": "kpiAtRisk",
       "type": "kpi",
-      "title": "Fraudulent transactions",
-      "sourceId": "totals",
-      "enc": { "value": "fraud_txns", "agg": "max" },
-      "warn": 10,
-      "crit": 25,
+      "title": "Money at risk ($)",
+      "sourceId": "risk",
+      "enc": {
+        "value": "at_risk",
+        "agg": "max"
+      },
       "w": 3,
       "h": 2
+    },
+    {
+      "id": "kpiBiggest",
+      "type": "kpi",
+      "title": "Largest single fraud ($)",
+      "sourceId": "risk",
+      "enc": {
+        "value": "biggest",
+        "agg": "max"
+      },
+      "w": 3,
+      "h": 2
+    },
+    {
+      "id": "gaugeValue",
+      "type": "gauge",
+      "title": "Fraud as % of VALUE moved",
+      "sourceId": "risk",
+      "enc": {
+        "value": "pct_value",
+        "agg": "max"
+      },
+      "target": 5,
+      "warn": 2,
+      "crit": 4,
+      "w": 3,
+      "h": 3
+    },
+    {
+      "id": "dailyVolume",
+      "type": "timeseries",
+      "title": "Volume per simulated day — fraud stacked on top",
+      "sourceId": "daily",
+      "chart": {
+        "spec": {
+          "chartType": "Area Chart",
+          "encodings": {
+            "x": {
+              "field": "day"
+            },
+            "y": {
+              "field": "volume"
+            },
+            "color": {
+              "field": "kind"
+            }
+          }
+        },
+        "semanticTypes": {
+          "day": "Time",
+          "volume": "Quantity",
+          "kind": "Nominal"
+        },
+        "colors": {
+          "fraud": "#c9635b",
+          "legitimate": "#5aa9e6"
+        }
+      },
+      "w": 9,
+      "h": 3
+    },
+    {
+      "id": "verdictSplit",
+      "type": "bars",
+      "title": "Shared identities — how many are actually rings",
+      "sourceId": "verdict",
+      "chart": {
+        "spec": {
+          "chartType": "Pie Chart",
+          "encodings": {
+            "color": {
+              "field": "verdict"
+            },
+            "size": {
+              "field": "identities"
+            }
+          }
+        },
+        "semanticTypes": {
+          "verdict": "Nominal",
+          "identities": "Quantity"
+        },
+        "colors": {
+          "ring confirmed": "#c9635b",
+          "innocent so far": "#6f7787"
+        }
+      },
+      "w": 4,
+      "h": 4
+    },
+    {
+      "id": "suspectList",
+      "type": "table",
+      "title": "Who moved the fraud money",
+      "sourceId": "suspects",
+      "enc": {
+        "label": "suspect",
+        "value": "moved"
+      },
+      "w": 4,
+      "h": 4
+    },
+    {
+      "id": "ringMoney",
+      "type": "bars",
+      "title": "Where money from identity-sharing accounts lands",
+      "sourceId": "ringFanIn",
+      "chart": {
+        "spec": {
+          "chartType": "Bar Chart",
+          "encodings": {
+            "x": {
+              "field": "collector"
+            },
+            "y": {
+              "field": "received"
+            }
+          }
+        },
+        "semanticTypes": {
+          "collector": "Nominal",
+          "received": "Quantity"
+        }
+      },
+      "sort": "valueDesc",
+      "w": 4,
+      "h": 4
+    },
+    {
+      "id": "bandRisk",
+      "type": "bars",
+      "title": "% of each size band that is fraud",
+      "sourceId": "bands",
+      "chart": {
+        "spec": {
+          "chartType": "Lollipop Chart",
+          "encodings": {
+            "x": {
+              "field": "band"
+            },
+            "y": {
+              "field": "percent_fraud"
+            }
+          }
+        },
+        "semanticTypes": {
+          "band": "Nominal",
+          "percent_fraud": "Quantity"
+        }
+      },
+      "w": 4,
+      "h": 4,
+      "color": "#c9635b"
+    },
+    {
+      "id": "muleTake",
+      "type": "bars",
+      "title": "Taken by mules",
+      "sourceId": "mules",
+      "chart": {
+        "spec": {
+          "chartType": "Pyramid Chart",
+          "encodings": {
+            "x": {
+              "field": "mule"
+            },
+            "y": {
+              "field": "taken"
+            }
+          }
+        },
+        "semanticTypes": {
+          "mule": "Nominal",
+          "taken": "Quantity"
+        }
+      },
+      "sort": "valueDesc",
+      "w": 4,
+      "h": 4
+    },
+    {
+      "id": "exitBar",
+      "type": "bars",
+      "title": "Where value leaves the network",
+      "sourceId": "exitRisk",
+      "chart": {
+        "spec": {
+          "chartType": "Stacked Bar Chart",
+          "encodings": {
+            "x": {
+              "field": "channel"
+            },
+            "color": {
+              "field": "destination"
+            },
+            "y": {
+              "field": "volume"
+            }
+          }
+        },
+        "semanticTypes": {
+          "channel": "Nominal",
+          "destination": "Nominal",
+          "volume": "Quantity"
+        },
+        "colors": {
+          "high-risk merchants": "#c9971f",
+          "normal merchants": "#6f7787"
+        }
+      },
+      "w": 4,
+      "h": 4
     },
     {
       "id": "kpiSelected",
       "type": "kpi",
       "title": "Selected on canvas",
       "sourceId": "sel",
-      "enc": { "agg": "count" },
+      "enc": {
+        "agg": "count"
+      },
       "w": 3,
       "h": 2
     },
     {
-      "id": "barsByAction",
-      "type": "bars",
-      "title": "By action",
-      "sourceId": "byAction",
-      "chart": {
-        "spec": {
-          "chartType": "Bar Chart",
-          "encodings": { "x": { "field": "action" }, "y": { "field": "txns" } }
-        },
-        "semanticTypes": { "action": "Nominal", "txns": "Quantity" }
-      },
-      "sort": "valueDesc",
-      "w": 6,
-      "h": 4
-    },
-    {
-      "id": "tableFraud",
-      "type": "table",
-      "title": "Fraud, newest first",
-      "sourceId": "fraudFeed",
-      "enc": { "label": "sender", "value": "amount" },
-      "w": 6,
-      "h": 4
-    },
-    {
       "id": "notes",
       "type": "markdown",
-      "title": "What you are watching",
-      "text": "Every number here is one GQL query against Spanner Omni, re-run every 2 seconds.\n\nThere is no second store and no cache: `./gxr stream up` replays 12,033 transactions through Kafka, and the sink writes a `:transaction` node and two edges per event. The KPIs climb because the graph is growing underneath them — the whole replay takes about two minutes.\n\nThe actors never move — clients, merchants, banks and identifiers were loaded once by `./gxr up`. What streams is the 88% of the graph that is transactions.",
-      "w": 12,
+      "title": "Reading this as an investigator",
+      "text": "**Money, not count.** The gauge is fraud as a share of *value*. By transaction count fraud is 0.27% — the number that makes it look like nothing. By value it is an order of magnitude worse, which is what a fraud desk is accountable for.\n\n**Shared identity is a lead, not a verdict.** The left-hand chart splits the identities a flat rule flags into the ones where money actually moves between the holders and the ones where it never does. Identity edges load up front; the money arrives on the stream, so the \"ring confirmed\" bar grows from zero while the total stays put. The bar that does not grow is a family sharing a phone.\n\n**Follow one name.** *Who moved the fraud money* is the case file — one account carries most of the value. Click any bar to select those nodes on the canvas and open the neighbourhood.",
+      "w": 9,
       "h": 2
     }
   ]
