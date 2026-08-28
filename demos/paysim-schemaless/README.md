@@ -243,6 +243,44 @@ shared-identifier rule flags them; the relationship does not.
 [`queries/README.md`](queries/README.md) has what each query should return and the GQL
 gotchas, schemaless edition.
 
+## Watch it arrive
+
+The demo above loads all 13,666 nodes at once. To watch the graph fill instead,
+replay the transactions through Kafka and put a live Kineviz Dashboard on top:
+
+```bash
+./scripts/install-dashboard.sh                # finds Kineviz and the project itself
+../../gxr stream up paysim-schemaless         # ~2 minutes
+../../gxr stream status                       # watches it fill, live
+```
+
+The whole replay takes about two minutes, and the dashboard's KPIs climb on
+their own — its database widgets re-run every two seconds, so nobody has to
+press anything. Quiet stretches still stay quiet and fraud still arrives in
+bursts, just closer together.
+
+`stream status` redraws in place while it runs, so the terminal shows the same
+thing the dashboard does:
+
+```
+  landed   █████████████████░░░░░░░  8619 / 12033  71%
+  106 tx/s · ~32s left · 0 behind the topic
+```
+
+Only the transactions move. Clients, merchants, banks and identifiers stay
+exactly as `up` loaded them, because the stream carries transactions and every
+transaction needs its sender to already exist. What refills is the 88% of the
+graph that is facts: ~12k `:transaction` nodes and the ~24k edges off them.
+
+Replaying is safe to repeat. The sink writes with the same primary keys the batch
+path uses, so `../../gxr stream up --keep` replays all 12,033 transactions onto a
+full database and the count never moves — and `verify.sh` passes either way,
+because a streamed row and a batch-loaded row are the same row.
+
+[`../../streaming/README.md`](../../streaming/README.md) has the pipeline and its
+failure modes; [`kineviz/README.md`](kineviz/README.md) has the dashboard and the
+two rules any query you add to it has to follow.
+
 ## How the graph is modeled
 
 Two tables:

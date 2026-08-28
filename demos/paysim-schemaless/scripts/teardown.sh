@@ -17,6 +17,12 @@ step "Teardown — removing what this demo created"
 load_env "$DEMO_DIR"
 require_env OMNI_CONTAINER OMNI_DATABASE
 
+# The sink holds a connection to the database and would carry on writing into a
+# teardown. It goes first. A no-op when the stream was never started.
+if docker compose version >/dev/null 2>&1; then
+  stream_down
+fi
+
 if omni_running; then
   omni_db_drop "$OMNI_DATABASE"
 else

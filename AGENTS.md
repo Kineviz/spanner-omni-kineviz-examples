@@ -54,6 +54,11 @@ change:
   not evidence either way. The row count is.
 - **handoff** prints the block you relay verbatim. Then you stop.
 
+The streaming leg (`./gxr stream up|status|down`) comes **only after a successful
+`up`**: the producer replays the CSV that setup generated, and the sink writes
+edges whose parent nodes setup seeded. `./gxr stream status` is its verify —
+produced vs. lag vs. landed. Never report the stream as working without it.
+
 ## Connecting Kineviz — do not oversell this
 
 Kineviz has **no native Spanner Omni connector**. If you tell someone to open Desktop and pick
@@ -117,6 +122,11 @@ Pass `--json` to any script for structured status instead of prose.
 - **Never change `OMNI_VERSION` to make something work.** The image tag is pinned on purpose.
   If a demo fails on the pinned tag, that is a finding to report, not an obstacle to route
   around.
+- **`./gxr stream up` deletes the streamed transactions before replaying. That is its
+  job — but it is still a delete.** It touches only `:transaction` nodes and the four edge
+  labels that hang off them, never actors or identifiers, and never a database other than
+  `OMNI_DATABASE`. Do not extend it to clear anything else, and use `--keep` when the point
+  is to prove idempotency rather than to watch the graph fill.
 - Never edit `demos/*/sql/` or `demos/*/queries/` to make `verify` pass. If the planted
   findings are not there, the data and the schema have drifted apart — that is a bug.
 - Never write secrets anywhere but `.env`, which is gitignored. There are no credentials in

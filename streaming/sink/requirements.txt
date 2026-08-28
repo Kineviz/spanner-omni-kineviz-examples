@@ -1,0 +1,5 @@
+confluent-kafka>=2.5,<3
+# 3.65 is the first release that supports Spanner Omni at all. An older client
+# fails with an authentication error rather than a version error, which sends
+# people looking in exactly the wrong place.
+google-cloud-spanner>=3.65,<4

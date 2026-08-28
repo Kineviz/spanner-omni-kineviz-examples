@@ -169,3 +169,8 @@ demo_dir() { cd "$(dirname "${BASH_SOURCE[1]}")/.." && pwd; }
 # Spanner Omni deployment + CLI helpers.
 # shellcheck source=shared/lib/omni.sh
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/omni.sh"
+
+# The Kafka replay leg. Sourced here, not only from gxr, because teardown.sh has
+# to stop the sink before dropping the database it is writing into.
+# shellcheck source=shared/lib/stream.sh
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/stream.sh"
