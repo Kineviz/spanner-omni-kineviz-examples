@@ -45,6 +45,10 @@ findings the queries and verify.sh assert. It prints what it planted.
 
 Output: GraphNode.csv, GraphEdge.csv (both HEADERLESS — Spanner's CSV import
 wants no header row), csv-export.json, and PLANTED.json, into --out.
+
+Also transactions.csv, which nothing imports: it is the same transactions as a
+flat fact stream, with a header, for the Kafka replay in streaming/. The batch
+path does not read it and the two CSVs above do not change because of it.
 """
 
 import argparse
@@ -418,6 +422,36 @@ class Gen:
 
         dump("GraphNode.csv", nodes)
         dump("GraphEdge.csv", edges)
+
+        # transactions.csv — the same transactions again, as a flat fact stream
+        # for the Kafka replay in streaming/. It is an ADDITIONAL file, not a
+        # replacement: the two CSVs above are unchanged, so the batch path loads
+        # exactly what it always loaded.
+        #
+        # The columns are the transaction as it happened, not as it is stored.
+        # Turning one of these rows back into a node and two edges is the sink's
+        # job (streaming/sink/sink.py), and it does it with the same rules used
+        # thirty lines above — same `label_key` ids, same lowercase labels, same
+        # rounded amount. That is what lets a streamed row and a batch-loaded row
+        # be the same row, so replaying onto a full database changes nothing.
+        #
+        # WITH a header, unlike the two above: nothing imports this file into
+        # Spanner, csv.DictReader in the producer reads it, and a header there is
+        # worth more than consistency with a constraint that does not apply.
+        # Already ordered by (step, jitter) with global_step assigned in that
+        # order, so the producer can pace on `ts` without sorting.
+        with (out / "transactions.csv").open("w", newline="") as f:
+            w = csv.writer(f)
+            w.writerow(["global_step", "step", "ts", "action", "amount",
+                        "sender_id", "sender_type", "receiver_id",
+                        "receiver_type", "is_fraud", "is_flagged_fraud"])
+            for t in self.txs:
+                w.writerow([t["global_step"], t["step"], t["ts"], t["action"],
+                            money2(t["amount"]), t["sender_id"],
+                            t["sender_type"], t["receiver_id"],
+                            t["receiver_type"],
+                            "true" if t["is_fraud"] else "false",
+                            "true" if t["is_flagged_fraud"] else "false"])
 
         # typeName must be the EXACT type in 01_schema.ddl. "STRING" instead of
         # "STRING(MAX)" fails the import with
