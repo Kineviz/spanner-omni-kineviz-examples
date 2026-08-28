@@ -10,6 +10,9 @@
 #   ./gxr up <slug>           preflight → setup → verify → handoff
 #   ./gxr connect up <slug>   install+run the database proxy, print the Kineviz URL
 #   ./gxr connect status|down manage that proxy
+#   ./gxr stream up <slug>    replay the transactions through Kafka, live
+#   ./gxr stream status       watch the replay fill the graph (--once for a snapshot)
+#   ./gxr stream down         stop it
 #   ./gxr preflight <slug>    check prerequisites only; creates nothing
 #   ./gxr verify <slug>       assert the demo works, with a real query
 #   ./gxr down <slug>         teardown; asks first
@@ -22,6 +25,7 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$REPO_ROOT/shared/lib/common.sh"
 source "$REPO_ROOT/shared/lib/connect.sh"
+# stream.sh comes in through common.sh — teardown.sh needs it too.
 
 for arg in "$@"; do
   [ "$arg" = "--json" ] && { GXR_JSON=1; export GXR_JSON; }
@@ -309,12 +313,49 @@ EOF
   esac
 }
 
+# ./gxr stream up|status|down [slug]
+#
+# The graph, arriving instead of already there. `up` builds all 13,666 nodes at
+# once; this clears the ~12k transactions and replays them through Kafka on
+# compressed time, so a Kineviz dashboard fills while someone watches it.
+#
+# Comes only after a successful `up`: the producer replays the CSV that setup
+# generated, and the sink writes edges whose parent nodes setup seeded.
+cmd_stream() {
+  local sub="${1:-status}"; shift || true
+  local slug=paysim-schemaless flag="" keep="" once="" a
+  for a in "$@"; do
+    case "$a" in
+      --volumes) flag="--volumes" ;;
+      --keep)    keep="--keep" ;;
+      --once)    once="--once" ;;
+      --json)    : ;;
+      *)         slug="$a" ;;
+    esac
+  done
+  local dir; dir=$(demo_path "$slug")
+  [ -f "$dir/.env" ] || die "No .env in demos/$slug." \
+    "Run './gxr up $slug' first — it creates .env and builds the graph."
+  load_env "$dir"
+  require_env OMNI_CONTAINER OMNI_DATABASE
+
+  case "$sub" in
+    up)     step "Streaming the transactions into $OMNI_DATABASE"; stream_up "$dir" "$keep" ;;
+    status) stream_status "$slug" "$dir" "$once" ;;
+    down|stop) stream_down "$flag" ;;
+    ""|-h|--help) printf 'Usage: ./gxr stream up [slug] [--keep] | status [slug] [--once] | down [--volumes]\n' ;;
+    *) die "Unknown stream subcommand: $sub" \
+           "One of: up [slug] [--keep], status [slug] [--once], down [--volumes]" ;;
+  esac
+}
+
 case "${1:-}" in
   list)              shift; cmd_list ;;
   deps)              shift; cmd_deps ;;
   omni)              shift; cmd_omni "$@" ;;
   up)                shift; [ $# -ge 1 ] || usage 1; cmd_up "$1" ;;
   connect)           shift; cmd_connect "$@" ;;
+  stream)            shift; cmd_stream "$@" ;;
   preflight|verify)  c="$1"; shift; [ $# -ge 1 ] || usage 1; run_step "$(demo_path "$1")" "$c" ;;
   down|teardown)     shift; [ $# -ge 1 ] || usage 1; cmd_down "$1" ;;
   doctor)            shift; cmd_doctor ;;
