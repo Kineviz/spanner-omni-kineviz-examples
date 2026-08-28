@@ -1,0 +1,143 @@
+# The streaming stack: Apache Kafka (KRaft, single node), a topic-init job, the
+# PaySim replay producer, the Spanner Omni sink, and an optional web UI.
+#
+# Driven by `./gxr stream up|status|down` — see shared/lib/stream.sh. Compose
+# reads the same .env values gxr exports; every ${VAR:-default} here matches the
+# defaults in stream.sh and demos/paysim-schemaless/.env.example, so
+# `docker compose config` also works standalone. Change a default in both places
+# or they drift.
+#
+# The Spanner Omni deployment is deliberately NOT a service here. It is longer
+# lived than any one streaming session, it belongs to `./gxr omni`, and it may
+# hold other people's databases — the rule in AGENTS.md is that nothing outside
+# `omni` starts, stops or removes it. The sink reaches it on the host instead.
+#
+# PORTS AND PROJECT NAME ARE DELIBERATELY NOT THE POSTGRES REPO'S. That stack
+# (Kineviz/pg-kineviz-examples) publishes 9092/8082 and runs under the compose
+# project `paysim-stream`. Both repos get run on the same laptop, so this one
+# takes 9094/8084 and `paysim-schemaless-stream`, and the two coexist.
+
+services:
+  broker:
+    image: apache/kafka:${KAFKA_VERSION:-4.3.1}
+    ports:
+      - "${KAFKA_PORT:-9094}:9092"          # host clients (kcat, notebooks)
+    environment:
+      # Single-node KRaft: this one process is broker and controller both.
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@broker:29093
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      # Two data listeners because there are two worlds: containers on the demo
+      # network reach `broker:29092`; your machine reaches localhost. Advertising
+      # the wrong one is the classic Kafka networking failure, so both are spelled
+      # out.
+      KAFKA_LISTENERS: PLAINTEXT://:29092,CONTROLLER://:29093,PLAINTEXT_HOST://:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://broker:29092,PLAINTEXT_HOST://localhost:${KAFKA_PORT:-9094}
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      # Single-node facts of life.
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      # The topics job creates the topic with intent; auto-create would let a
+      # typo'd topic name appear silently instead of failing loudly.
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    healthcheck:
+      # broker:29092, NOT localhost:9092. An admin client bootstrapping on the
+      # host listener is handed back its ADVERTISED address — localhost:${KAFKA_PORT}
+      # — and nothing listens on that port inside the container, so the call hangs
+      # until it times out. The in-network listener advertises broker:29092, which
+      # resolves here. (The Postgres repo bootstraps on localhost:9092 and only
+      # gets away with it because its host port happens to be 9092 too.)
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server broker:29092 --list >/dev/null 2>&1"]
+      interval: 5s
+      timeout: 20s
+      retries: 24
+      start_period: 10s
+    networks: [demo]
+
+  topics:
+    image: apache/kafka:${KAFKA_VERSION:-4.3.1}
+    depends_on:
+      broker:
+        condition: service_healthy
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - >
+        /opt/kafka/bin/kafka-topics.sh --create --if-not-exists
+        --topic "${KAFKA_TOPIC:-paysim.transactions}"
+        --partitions "${KAFKA_PARTITIONS:-3}"
+        --replication-factor 1
+        --bootstrap-server broker:29092
+        && echo "topic ready: ${KAFKA_TOPIC:-paysim.transactions}"
+    restart: "no"
+    networks: [demo]
+
+  producer:
+    build: ./producer
+    depends_on:
+      topics:
+        condition: service_completed_successfully
+    environment:
+      KAFKA_BOOTSTRAP: broker:29092
+      KAFKA_TOPIC: ${KAFKA_TOPIC:-paysim.transactions}
+      # Time-compressed replay: one simulated hour takes this many wall seconds.
+      # The dataset spans ~720 simulated hours, so 0.167 replays all 30 days in
+      # about two minutes — long enough to watch the graph fill, short enough to
+      # sit through twice. STREAM_RATE, when set, switches to flat tx/s instead.
+      STREAM_HOUR_SECONDS: ${STREAM_HOUR_SECONDS:-0.167}
+      STREAM_RATE: ${STREAM_RATE:-}
+      DATA_FILE: /data/transactions.csv
+    volumes:
+      # gxr sets STREAM_DATA_DIR to the demo's data/generated; the relative
+      # fallback keeps `docker compose config` valid standalone.
+      - ${STREAM_DATA_DIR:-../demos/paysim-schemaless/data/generated}:/data:ro
+    restart: "no"          # one replay, then exit 0 — that is the point
+    networks: [demo]
+
+  sink:
+    build: ./sink
+    depends_on:
+      topics:
+        condition: service_completed_successfully
+    environment:
+      KAFKA_BOOTSTRAP: broker:29092
+      KAFKA_TOPIC: ${KAFKA_TOPIC:-paysim.transactions}
+      KAFKA_GROUP: ${KAFKA_GROUP:-paysim-schemaless-sink}
+      # The deployment runs on the host, not in this stack. host-gateway is what
+      # makes host.docker.internal resolve on Linux; Docker Desktop provides it
+      # anyway. OMNI_PORT is the in-container port, which is the published one
+      # because the sink is talking to the host.
+      OMNI_HOST: ${STREAM_OMNI_HOST:-host.docker.internal}
+      OMNI_PORT: ${OMNI_PORT:-15000}
+      OMNI_DATABASE: ${OMNI_DATABASE:-kineviz-paysim-demo}
+      BATCH_SIZE: ${STREAM_BATCH_SIZE:-200}
+      FLUSH_MS: ${STREAM_FLUSH_MS:-1000}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+    networks: [demo]
+
+  ui:
+    profiles: [ui]
+    image: ghcr.io/kafbat/kafka-ui:v1.5.0
+    ports:
+      - "${KAFKA_UI_PORT:-8084}:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: paysim-schemaless-local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: broker:29092
+    depends_on:
+      broker:
+        condition: service_healthy
+    networks: [demo]
+
+volumes:
+  kafka-data:
+
+networks:
+  demo:
+    name: ${STREAM_NETWORK:-kineviz-schemaless-stream-net}
