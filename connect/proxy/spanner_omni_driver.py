@@ -138,20 +138,50 @@ class SpannerOmniDriver(SpannerDriver):
                 "Upgrade the proxy's environment: uv pip install -U 'google-cloud-spanner>=3.65.0'"
             ) from e
 
-    async def connect(self) -> None:
-        """Open the connection.
+    # One client per (endpoint, database), shared by every request.
+    #
+    # The proxy builds a NEW driver for each HTTP call (api/database.py), and a
+    # Spanner Database is not a cheap handle: it opens a gRPC channel and starts a
+    # background thread — DatabaseSessionsManager._maintain_multiplexed_session —
+    # to keep its multiplexed session alive. One per request is one thread per
+    # request. Measured on this deployment: ~1.35 threads leaked per query, and a
+    # proxy left serving a 2s dashboard reached 9,217 threads, stopped answering,
+    # and pushed the host into swap.
+    #
+    # Tearing them down per request does not work either. The published shutdown,
+    # DatabaseSessionsManager.close(), ends with `self._multiplexed_session.delete()`
+    # — an RPC the preview build of Spanner Omni never answers, so the call blocks
+    # forever and wedges the request that made it. Setting the terminate event by
+    # hand does not help: the maintenance loop is a plain sleep(600), not a wait on
+    # the event, so the thread ignores it for up to ten minutes and they pile up
+    # anyway.
+    #
+    # So the handle is kept instead of rebuilt. That is what every other database
+    # driver does with a connection, the Spanner client is documented as
+    # thread-safe, and it leaves exactly one channel and one thread alive for the
+    # life of the proxy rather than one per request.
+    _CLIENTS: dict = {}
 
-        Deliberately ignores `auth_type`. The preview build of Spanner Omni has
-        no authentication at all, so honouring the form's auth selection would
-        mean failing on a credential the deployment would never have checked.
+    async def connect(self) -> None:
+        """Open the connection, or reuse the one this endpoint already has.
+
+        Deliberately ignores `auth_type`. The preview build of Spanner Omni has no
+        authentication at all, so honouring the form's auth selection would mean
+        failing on a credential the deployment would never have checked.
         """
         endpoint = self._endpoint()
+        if not self.config.database_id:
+            raise ConnectionError("database_id is required")
+
+        key = (endpoint, self.config.database_id)
+        cached = self._CLIENTS.get(key)
+        if cached is not None:
+            self.client, self.instance, self.database = cached
+            return
+
         try:
             print(f"[INFO] Connecting to Spanner Omni at {endpoint} (plain text, no auth)")
             self.client = await self._get_omni_client()
-
-            if not self.config.database_id:
-                raise ValueError("database_id is required")
 
             # Project and instance are not read from the form on purpose. If
             # someone types their GCP project into that field, honouring it
@@ -159,10 +189,11 @@ class SpannerOmniDriver(SpannerDriver):
             self.instance = self.client.instance(OMNI_INSTANCE)
             self.database = self.instance.database(self.config.database_id)
 
+            self._CLIENTS[key] = (self.client, self.instance, self.database)
             print(f"[INFO] Project: {OMNI_PROJECT} (fixed)")
             print(f"[INFO] Instance: {OMNI_INSTANCE} (fixed)")
             print(f"[INFO] Database: {self.config.database_id}")
-            print("[OK] Spanner Omni connection established")
+            print("[OK] Spanner Omni connection established (cached for reuse)")
 
         except Exception as e:
             print(f"[ERROR] Failed to connect to Spanner Omni: {e}")
@@ -211,4 +242,15 @@ class SpannerOmniDriver(SpannerDriver):
         return super()._execute_sql_query(query, parameters)
 
     async def disconnect(self) -> Optional[None]:
-        return await super().disconnect()
+        """Release this driver's references and leave the shared client alone.
+
+        The inherited implementation sets client/instance/database to None, which
+        is exactly right here: the objects belong to the cache in `connect()`, not
+        to this request. Closing them would take the channel and the session
+        thread away from every request still in flight, and rebuilding them per
+        request is the leak this design exists to avoid.
+        """
+        self.client = None
+        self.instance = None
+        self.database = None
+        return None
