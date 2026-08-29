@@ -277,6 +277,11 @@ path uses, so `../../gxr stream up --keep` replays all 12,033 transactions onto 
 full database and the count never moves — and `verify.sh` passes either way,
 because a streamed row and a batch-loaded row are the same row.
 
+**It runs with the network off.** Do `./gxr offline prepare` once while
+connected — it pulls the images and builds the producer and sink — and after that
+the whole chain is local: deployment, broker, sink, proxy, graph. `./gxr offline
+check` says what is still missing, and `./gxr doctor` reports it too.
+
 [`../../streaming/README.md`](../../streaming/README.md) has the pipeline and its
 failure modes; [`kineviz/README.md`](kineviz/README.md) has the dashboard and the
 two rules any query you add to it has to follow.

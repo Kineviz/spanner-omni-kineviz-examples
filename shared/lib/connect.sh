@@ -69,7 +69,12 @@ proxy_install() {
            "Update PROXY_REF in shared/lib/connect.sh only deliberately — the Omni driver is written against it."
   ok "proxy source at ${PROXY_REF:0:7}"
 
+  # Whether the venv predates this run decides how hard a failed install is: on a
+  # fresh one nothing would work, on an existing one it is very likely just the
+  # network being absent.
+  local venv_existed=1
   if [ ! -x "$PROXY_VENV/bin/python" ]; then
+    venv_existed=0
     info "creating a virtualenv for the proxy"
     python3 -m venv "$PROXY_VENV" \
       || die "Could not create a virtualenv at .connect/proxy/.venv." \
@@ -80,18 +85,32 @@ proxy_install() {
   # registry imports every driver at module load, so a requirement missing for
   # a driver you do not use still breaks the one you do: without httpx, the
   # RocketGraph import fails and takes the Spanner route down with it.
+  # pip needs the network, and an already-installed venv does not. Failing hard
+  # here made `connect up` impossible offline — which took the dashboard down with
+  # it, since every widget reads through the proxy. On an existing venv a failure
+  # is a warning and the run continues; the check that actually matters happens a
+  # few lines later, when proxy_start waits for /docs and proxy_check proves the
+  # chain to Omni. A genuinely broken venv still fails, at the point that can tell.
   info "installing proxy requirements"
   "$PROXY_VENV/bin/python" -m pip install --quiet --upgrade pip >/dev/null 2>&1 || true
-  "$PROXY_VENV/bin/python" -m pip install --quiet -r "$PROXY_DIR/requirements.txt" \
-    || die "Installing the proxy's requirements failed." \
-           "Read the error above. See .connect/proxy/requirements.txt"
 
+  local install_ok=1
+  "$PROXY_VENV/bin/python" -m pip install --quiet -r "$PROXY_DIR/requirements.txt" \
+    || install_ok=0
   # google-cloud-spanner is a proxy requirement, but the Omni driver needs a
   # floor the proxy itself does not declare.
   "$PROXY_VENV/bin/python" -m pip install --quiet 'google-cloud-spanner>=3.65.0' \
-    || die "Could not install google-cloud-spanner>=3.65.0." \
-           "The Omni driver needs it for the plain-text endpoint options."
-  ok "requirements installed"
+    || install_ok=0
+
+  if [ "$install_ok" = 1 ]; then
+    ok "requirements installed"
+  elif [ "$venv_existed" = 1 ]; then
+    warn "could not install requirements — continuing with the venv already here"
+    dim "expected with no network; if the proxy fails to start, run this again online"
+  else
+    die "Installing the proxy's requirements failed, and the virtualenv is new." \
+        "That first install needs a network. See .connect/proxy/requirements.txt"
+  fi
 
   proxy_apply_driver
 }

@@ -42,6 +42,27 @@ instead: same replay, same primary keys, count never wavers.
 `up` loaded them. What clears and refills is the fact stream — ~12k
 `:transaction` nodes and the ~24k edges hanging off them, 88% of the graph.
 
+## Running with no network
+
+Everything this stack *runs* is local. Everything it *builds* is not: the
+Dockerfiles start from `python:3.12-slim` and pip install, so a first build wants
+docker.io and PyPI. Do that once, while you have a network:
+
+```bash
+./gxr offline prepare        # pull the images, build producer and sink
+./gxr offline check          # what still needs a network, if anything
+```
+
+After that `./gxr stream up` starts disconnected. It builds only when the images
+are missing or the source has changed — each image carries a `gxr.srchash` label
+recording the build context it came from, so "already built from this source" is a
+local question with a local answer. `./gxr up` and `./gxr connect up` make no
+network calls of their own once the proxy checkout exists.
+
+Edit `sink.py` with no network and the stack still starts, saying plainly that the
+running code is older than the source. That beats the alternative, which is
+debugging code that is not the code you are reading.
+
 ## What lands, per transaction
 
 Three rows, one commit:

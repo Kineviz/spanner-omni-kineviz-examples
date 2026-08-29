@@ -16,6 +16,7 @@
 #   ./gxr preflight <slug>    check prerequisites only; creates nothing
 #   ./gxr verify <slug>       assert the demo works, with a real query
 #   ./gxr down <slug>         teardown; asks first
+#   ./gxr offline check       what still needs a network (prepare to fetch it)
 #   ./gxr doctor              run the same checks CI runs
 #
 # Add --json to any command for structured output.
@@ -252,6 +253,16 @@ cmd_down() {
 cmd_doctor() {
   command -v python3 >/dev/null 2>&1 || die "python3 not found." "Install Python 3.9+."
   python3 "$REPO_ROOT/tools/check_contract.py" "$REPO_ROOT"
+
+  # The contract check above is about the repo and is what CI runs (the workflows
+  # call check_contract.py directly, not this). This part is about the machine:
+  # whether the demo could still start with the network unplugged, which is the
+  # question nobody thinks to ask until they are in the room.
+  local dir; dir="$REPO_ROOT/demos/paysim-schemaless"
+  if [ -d "$dir" ] && docker info >/dev/null 2>&1; then
+    [ -f "$dir/.env" ] && load_env "$dir"
+    offline_check "$dir"
+  fi
 }
 
 
@@ -349,6 +360,122 @@ cmd_stream() {
   esac
 }
 
+# ./gxr offline prepare|check [slug]
+#
+# Everything this demo runs is local — the deployment, the broker, the sink, the
+# proxy, the graph. Everything it *builds* is not: a first run pulls images and
+# pip installs. `prepare` does that work while there is a network so a later run
+# needs none, and `check` answers the only question worth asking before walking
+# into a room without WiFi: what is missing?
+cmd_offline() {
+  local sub="${1:-check}"; shift || true
+  local slug=paysim-schemaless a
+  for a in "$@"; do case "$a" in --json) : ;; *) slug="$a" ;; esac; done
+  local dir; dir=$(demo_path "$slug")
+  [ -f "$dir/.env" ] && load_env "$dir"
+
+  case "$sub" in
+    prepare) step "Preparing to run without a network"; offline_prepare "$dir" ;;
+    check|status) offline_check "$dir" ;;
+    ""|-h|--help) printf 'Usage: ./gxr offline prepare [slug] | check [slug]\n' ;;
+    *) die "Unknown offline subcommand: $sub" "One of: prepare [slug], check [slug]" ;;
+  esac
+}
+
+# Images the demo needs in the local cache to start with no network.
+offline_images() {
+  printf '%s\n' \
+    "apache/kafka:${KAFKA_VERSION:-4.3.1}" \
+    "${KAFKA_UI_IMAGE:-ghcr.io/kafbat/kafka-ui:v1.5.0}" \
+    "${OMNI_IMAGE:-us-docker.pkg.dev/spanner-omni/images/spanner-omni}:${OMNI_VERSION:?}"
+}
+
+offline_prepare() {
+  local dir="$1" img
+  require_docker
+
+  for img in $(offline_images); do
+    if docker image inspect "$img" >/dev/null 2>&1; then
+      ok "already cached: $img"
+    else
+      info "pulling $img"
+      docker pull --quiet "$img" >/dev/null \
+        && ok "pulled $img" \
+        || die "Could not pull $img." "This step is the one that needs a network."
+    fi
+  done
+
+  # The producer and sink are built here, not pulled — and the build is what
+  # cannot happen later, since the Dockerfiles pip install from a base image
+  # resolved against docker.io.
+  if [ "$(stream_build_state)" = current ]; then
+    ok "producer and sink images match the current source"
+  else
+    info "building the producer and sink images"
+    STREAM_SRC_HASH=$(stream_src_hash); export STREAM_SRC_HASH
+    stream_compose build --quiet >/dev/null \
+      || die "Could not build the producer and sink images." \
+             "This step needs a network: the base image and pip both come from outside."
+    ok "built producer and sink"
+  fi
+
+  proxy_install
+
+  [ -f "$dir/data/generated/transactions.csv" ] \
+    || warn "no generated data yet — run './gxr up ${dir##*/}' while you still have a network"
+
+  offline_check "$dir"
+}
+
+offline_check() {
+  local check_dir="$1" img gaps=0
+  require_docker
+
+  # Uses the repo's own ok/warn/info helpers rather than printing marks directly:
+  # they already handle --json, and a bare ✗ in this file makes shellcheck fail to
+  # encode its own output.
+  printf '\n  images\n'
+  for img in $(offline_images); do
+    if docker image inspect "$img" >/dev/null 2>&1; then
+      ok "$img"
+    else
+      warn "missing: $img"; gaps=$((gaps + 1))
+    fi
+  done
+
+  printf '\n  built here\n'
+  case "$(stream_build_state)" in
+    current) ok "producer and sink, from the current source" ;;
+    stale)   warn "producer and sink exist but predate the current source"
+             dim "they will still run; rebuild with a network to refresh them" ;;
+    missing) warn "producer and sink have never been built"; gaps=$((gaps + 1)) ;;
+  esac
+
+  printf '\n  proxy\n'
+  if [ -x "$PROXY_VENV/bin/python" ] \
+     && "$PROXY_VENV/bin/python" -c 'import google.cloud.spanner' >/dev/null 2>&1; then
+    ok "virtualenv installed"
+  else
+    warn "virtualenv missing or incomplete"; gaps=$((gaps + 1))
+  fi
+
+  printf '\n  data\n'
+  if [ -f "$check_dir/data/generated/transactions.csv" ]; then
+    ok "generated, $(awk 'END {print NR - 1}' "$check_dir/data/generated/transactions.csv") transactions to replay"
+  else
+    warn "not generated — run './gxr up ${check_dir##*/}'"; gaps=$((gaps + 1))
+  fi
+
+  printf '\n'
+  if [ "$gaps" = 0 ]; then
+    ok "ready to run with no network"
+  else
+    warn "$gaps thing(s) still need a network — run: ./gxr offline prepare"
+  fi
+  printf '\n'
+}
+
+
 case "${1:-}" in
   list)              shift; cmd_list ;;
   deps)              shift; cmd_deps ;;
@@ -356,6 +483,7 @@ case "${1:-}" in
   up)                shift; [ $# -ge 1 ] || usage 1; cmd_up "$1" ;;
   connect)           shift; cmd_connect "$@" ;;
   stream)            shift; cmd_stream "$@" ;;
+  offline)           shift; cmd_offline "$@" ;;
   preflight|verify)  c="$1"; shift; [ $# -ge 1 ] || usage 1; run_step "$(demo_path "$1")" "$c" ;;
   down|teardown)     shift; [ $# -ge 1 ] || usage 1; cmd_down "$1" ;;
   doctor)            shift; cmd_doctor ;;
