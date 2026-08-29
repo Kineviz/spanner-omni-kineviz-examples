@@ -20,6 +20,7 @@
 services:
   broker:
     image: apache/kafka:${KAFKA_VERSION:-4.3.1}
+    pull_policy: missing
     ports:
       - "${KAFKA_PORT:-9094}:9092"          # host clients (kcat, notebooks)
     environment:
@@ -62,6 +63,7 @@ services:
 
   topics:
     image: apache/kafka:${KAFKA_VERSION:-4.3.1}
+    pull_policy: missing
     depends_on:
       broker:
         condition: service_healthy
@@ -78,7 +80,16 @@ services:
     networks: [demo]
 
   producer:
-    build: ./producer
+    # Long form because of `labels`: gxr stream records a hash of the build
+    # context on the image, so a later run can tell "already built from this
+    # source" from "built from something else" without reaching a registry.
+    # `pull_policy: missing` keeps a cached base image from being re-checked
+    # online — the default, spelled out because offline is the point.
+    build:
+      context: ./producer
+      labels:
+        gxr.srchash: ${STREAM_SRC_HASH:-}
+    pull_policy: missing
     depends_on:
       topics:
         condition: service_completed_successfully
@@ -100,7 +111,11 @@ services:
     networks: [demo]
 
   sink:
-    build: ./sink
+    build:
+      context: ./sink
+      labels:
+        gxr.srchash: ${STREAM_SRC_HASH:-}
+    pull_policy: missing
     depends_on:
       topics:
         condition: service_completed_successfully
@@ -124,7 +139,8 @@ services:
 
   ui:
     profiles: [ui]
-    image: ghcr.io/kafbat/kafka-ui:v1.5.0
+    image: ${KAFKA_UI_IMAGE:-ghcr.io/kafbat/kafka-ui:v1.5.0}
+    pull_policy: missing
     ports:
       - "${KAFKA_UI_PORT:-8084}:8080"
     environment:

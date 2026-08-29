@@ -34,6 +34,7 @@ set -euo pipefail
 : "${KAFKA_VERSION:=4.3.1}"          # apache/kafka image tag — pinned, never latest
 : "${KAFKA_PORT:=9094}"              # host port for clients on your machine
 : "${KAFKA_UI_PORT:=8084}"           # kafbat/kafka-ui, under the `ui` profile
+: "${KAFKA_UI_IMAGE:=ghcr.io/kafbat/kafka-ui:v1.5.0}"
 : "${KAFKA_TOPIC:=paysim.transactions}"
 : "${KAFKA_PARTITIONS:=3}"
 : "${KAFKA_GROUP:=paysim-schemaless-sink}"
@@ -45,7 +46,8 @@ set -euo pipefail
 # derive it from this file's own location the way omni.sh does. Both land on the
 # same directory, and teardown.sh needs stream_down without going through gxr.
 STREAM_REPO_ROOT="${REPO_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
-STREAM_COMPOSE_FILE="$STREAM_REPO_ROOT/streaming/docker-compose.yml"
+STREAM_DIR="$STREAM_REPO_ROOT/streaming"
+STREAM_COMPOSE_FILE="$STREAM_DIR/docker-compose.yml"
 
 # The labels the stream owns. Everything else in the graph belongs to `up` and is
 # never touched by anything in this file.
@@ -95,6 +97,47 @@ stream_landed() {
     || printf '?'
 }
 
+# --- build, or not ------------------------------------------------------------
+
+# A fingerprint of what goes INTO the producer and sink images. Stored on each
+# image as the label `gxr.srchash` at build time, so a later run can ask "is this
+# image built from the source I have?" locally, without a registry.
+#
+# The alternative — rebuild every time — is what broke this offline: `--build`
+# resolves python:3.12-slim against docker.io before it will even consider the
+# cache, and the Dockerfiles pip install, so a from-scratch build needs the
+# network twice over.
+stream_src_hash() {
+  cat "$STREAM_DIR"/producer/* "$STREAM_DIR"/sink/* 2>/dev/null \
+    | shasum -a 256 | cut -c1-16
+}
+
+stream_image_name() { printf '%s-%s' "$STREAM_PROJECT" "$1"; }
+
+stream_image_hash() {
+  docker image inspect --format '{{index .Config.Labels "gxr.srchash"}}' \
+    "$(stream_image_name "$1"):latest" 2>/dev/null
+}
+
+stream_image_exists() {
+  docker image inspect "$(stream_image_name "$1"):latest" >/dev/null 2>&1
+}
+
+# Prints one of: current · stale · missing
+#
+# `stale` covers "built from different source" AND "built before this label
+# existed" — an unlabelled image reads as stale, which is the safe direction:
+# it asks for a rebuild rather than silently running code nobody can identify.
+stream_build_state() {
+  local want; want=$(stream_src_hash)
+  local svc
+  for svc in producer sink; do
+    stream_image_exists "$svc" || { printf 'missing'; return; }
+    [ "$(stream_image_hash "$svc")" = "$want" ] || { printf 'stale'; return; }
+  done
+  printf 'current'
+}
+
 # --- up ---------------------------------------------------------------------
 
 # Delete the fact stream, leaving the actors alone.
@@ -138,10 +181,45 @@ stream_up() {
   STREAM_DATA_DIR="$data_dir"
   export STREAM_DATA_DIR
 
-  info "starting the streaming stack (broker, topic init, producer, sink)"
-  stream_compose up -d --build --quiet-pull \
-    || die "docker compose could not start the streaming stack." \
-           "Inspect it: docker compose -p $STREAM_PROJECT -f $STREAM_COMPOSE_FILE logs"
+  # Build only when the images do not already match the source. `--build` on
+  # every run is what made this need the network: it resolves the base image
+  # against docker.io before it will look at the cache, and the Dockerfiles pip
+  # install, so a rebuild wants the network twice. With the hashes matching there
+  # is nothing to fetch and nothing to build, so the stack starts disconnected.
+  local state; state=$(stream_build_state)
+  STREAM_SRC_HASH=$(stream_src_hash)
+  export STREAM_SRC_HASH
+
+  local build_flag=""
+  case "$state" in
+    current)
+      info "starting the streaming stack (images already built from this source)"
+      ;;
+    stale|missing)
+      [ "$state" = missing ] \
+        && info "building the producer and sink images (first run needs the network)" \
+        || info "source changed since the images were built — rebuilding"
+      build_flag="--build"
+      ;;
+  esac
+
+  if ! stream_compose up -d $build_flag --quiet-pull; then
+    # A failed build with usable images almost always means no network. Say that
+    # rather than leaving a BuildKit dump as the last word, and run what we have.
+    if [ -n "$build_flag" ] && [ "$state" = stale ]; then
+      warn "could not rebuild — starting the images that are already here"
+      dim "the running producer/sink are older than $STREAM_DIR; rerun with a network to refresh them"
+      stream_compose up -d --quiet-pull \
+        || die "docker compose could not start the streaming stack." \
+               "Inspect it: docker compose -p $STREAM_PROJECT -f $STREAM_COMPOSE_FILE logs"
+    elif [ "$state" = missing ]; then
+      die "The producer and sink images do not exist yet and could not be built." \
+          "That first build needs a network. With one, run: ./gxr offline prepare"
+    else
+      die "docker compose could not start the streaming stack." \
+          "Inspect it: docker compose -p $STREAM_PROJECT -f $STREAM_COMPOSE_FILE logs"
+    fi
+  fi
 
   # `up -d` returns as soon as the containers exist, which is well before Kafka
   # elects itself in KRaft mode. Wait for the broker to answer its own admin CLI
