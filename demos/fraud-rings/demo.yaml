@@ -44,7 +44,7 @@ inputs: []
 requires:
   cli:    [docker, python3]
   omni_version: "2026.r1-beta.2"
-  kineviz_desktop: ">=0.17.1"
+  kineviz_desktop: ">=0.20.0"
   kineviz_account: true
 
 steps:
